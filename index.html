@@ -36,9 +36,10 @@
                 email: ''
             });
             const [ticketData, setTicketData] = useState({});
+            const [pendingNumbers, setPendingNumbers] = useState(new Set());
 
             const toggleNumber = (num) => {
-                if (soldNumbers.has(num)) return;
+                if (soldNumbers.has(num) || pendingNumbers.has(num)) return;
                 
                 const newSelected = new Set(selectedNumbers);
                 if (newSelected.has(num)) {
@@ -81,8 +82,29 @@
                     [currentTicket]: { ...formData }
                 });
 
+                // Marcar como vendido y quitar de pendientes/seleccionados
+                const newSold = new Set(soldNumbers);
+                newSold.add(currentTicket);
+                setSoldNumbers(newSold);
+
+                const newSelected = new Set(selectedNumbers);
+                newSelected.delete(currentTicket);
+                setSelectedNumbers(newSelected);
+
+                const newPending = new Set(pendingNumbers);
+                newPending.delete(currentTicket);
+                setPendingNumbers(newPending);
+
                 setShowForm(false);
                 shareWhatsApp(currentTicket, formData);
+            };
+
+            const cancelForm = () => {
+                setShowForm(false);
+                // Si cancelan, quitar de pendientes pero mantener en seleccionados
+                const newPending = new Set(pendingNumbers);
+                newPending.delete(currentTicket);
+                setPendingNumbers(newPending);
             };
 
             const shareWhatsApp = (num, userData = null) => {
@@ -108,16 +130,6 @@
 
                 const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
                 window.open(url, '_blank');
-                
-                // Marcar como vendido
-                const newSold = new Set(soldNumbers);
-                newSold.add(num);
-                setSoldNumbers(newSold);
-                
-                // Quitar de seleccionados
-                const newSelected = new Set(selectedNumbers);
-                newSelected.delete(num);
-                setSelectedNumbers(newSelected);
             };
 
             const openNequi = () => {
@@ -195,6 +207,27 @@
                                         </span>
                                     ))}
                                 </div>
+                                <p className="text-white/70 text-sm mt-2">
+                                    ⚠️ Haz clic en el botón del número para registrarlo
+                                </p>
+                            </div>
+                        )}
+
+                        {pendingNumbers.size > 0 && (
+                            <div className="bg-yellow-500/20 backdrop-blur-lg rounded-2xl p-4 border border-yellow-400/30">
+                                <p className="text-white font-semibold mb-2">
+                                    ⏳ Números en proceso: {pendingNumbers.size}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {Array.from(pendingNumbers).sort((a, b) => a - b).map(num => (
+                                        <span key={num} className="bg-yellow-500 text-white px-3 py-1 rounded-lg font-bold">
+                                            {num.toString().padStart(3, '0')}
+                                        </span>
+                                    ))}
+                                </div>
+                                <p className="text-white/70 text-sm mt-2">
+                                    📝 Completando formulario...
+                                </p>
                             </div>
                         )}
                     </div>
@@ -205,16 +238,19 @@
                             {numbers.map((num) => {
                                 const isSelected = selectedNumbers.has(num);
                                 const isSold = soldNumbers.has(num);
+                                const isPending = pendingNumbers.has(num);
                                 const hasData = ticketData[num];
                                 
                                 return (
                                     <div key={num} className="relative">
                                         <button
                                             onClick={() => toggleNumber(num)}
-                                            disabled={isSold}
+                                            disabled={isSold || isPending}
                                             className={`w-full aspect-square rounded-xl font-bold text-lg transition-all duration-200 ${
                                                 isSold
                                                     ? 'bg-red-500/50 text-white cursor-not-allowed opacity-60'
+                                                    : isPending
+                                                    ? 'bg-yellow-500 text-white cursor-not-allowed shadow-lg'
                                                     : isSelected
                                                     ? 'bg-green-500 text-white shadow-lg scale-105'
                                                     : 'bg-white/90 text-purple-900 hover:bg-white hover:scale-105'
@@ -222,8 +258,11 @@
                                         >
                                             {num.toString().padStart(3, '0')}
                                         </button>
-                                        {isSelected && !isSold && (
+                                        {isSelected && !isSold && !isPending && (
                                             <span className="absolute -top-1 -right-1 text-yellow-400 text-xl">✓</span>
+                                        )}
+                                        {isPending && (
+                                            <span className="absolute -top-1 -right-1 text-yellow-300 text-xl">⏳</span>
                                         )}
                                         {isSold && hasData && (
                                             <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
@@ -246,13 +285,21 @@
                         <div className="max-w-6xl mx-auto">
                             <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
                                 <h3 className="text-white text-xl font-bold mb-4 text-center">
-                                    Registrar y Enviar Boletas
+                                    Registrar Boletas Seleccionadas
                                 </h3>
+                                <p className="text-white/70 text-center mb-4">
+                                    Haz clic en el número para completar los datos del cliente
+                                </p>
                                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                                     {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => (
                                         <button
                                             key={num}
-                                            onClick={() => openForm(num)}
+                                            onClick={() => {
+                                                const newPending = new Set(pendingNumbers);
+                                                newPending.add(num);
+                                                setPendingNumbers(newPending);
+                                                openForm(num);
+                                            }}
                                             className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg hover:scale-105"
                                         >
                                             📝 {num.toString().padStart(3, '0')}
@@ -341,7 +388,7 @@
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setShowForm(false)}
+                                            onClick={cancelForm}
                                             className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
                                         >
                                             ✕ Cancelar
