@@ -21,7 +21,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel">
-        const { useState } = React;
+        const { useState, useEffect } = React;
 
         function TalonarioRifa() {
             const [selectedNumbers, setSelectedNumbers] = useState(new Set());
@@ -37,6 +37,28 @@
             });
             const [ticketData, setTicketData] = useState({});
             const [pendingNumbers, setPendingNumbers] = useState(new Set());
+
+            // Cargar datos guardados al iniciar
+            useEffect(() => {
+                const savedSoldNumbers = localStorage.getItem('rifaSoldNumbers');
+                const savedTicketData = localStorage.getItem('rifaTicketData');
+                
+                if (savedSoldNumbers) {
+                    setSoldNumbers(new Set(JSON.parse(savedSoldNumbers)));
+                }
+                if (savedTicketData) {
+                    setTicketData(JSON.parse(savedTicketData));
+                }
+            }, []);
+
+            // Guardar datos cuando cambien
+            useEffect(() => {
+                localStorage.setItem('rifaSoldNumbers', JSON.stringify(Array.from(soldNumbers)));
+            }, [soldNumbers]);
+
+            useEffect(() => {
+                localStorage.setItem('rifaTicketData', JSON.stringify(ticketData));
+            }, [ticketData]);
 
             const toggleNumber = (num) => {
                 if (soldNumbers.has(num) || pendingNumbers.has(num)) return;
@@ -77,10 +99,15 @@
                 }
 
                 // Guardar datos del ticket
-                setTicketData({
+                const newTicketData = {
                     ...ticketData,
-                    [currentTicket]: { ...formData }
-                });
+                    [currentTicket]: { 
+                        ...formData,
+                        fecha: new Date().toLocaleString('es-CO'),
+                        numero: currentTicket
+                    }
+                };
+                setTicketData(newTicketData);
 
                 // Marcar como vendido y quitar de pendientes/seleccionados
                 const newSold = new Set(soldNumbers);
@@ -96,7 +123,10 @@
                 setPendingNumbers(newPending);
 
                 setShowForm(false);
-                shareWhatsApp(currentTicket, formData);
+                
+                // Enviar a tu WhatsApp y mostrar ticket al cliente
+                sendToFranklinWhatsApp(currentTicket, formData);
+                showClientTicket(currentTicket, formData);
             };
 
             const cancelForm = () => {
@@ -107,26 +137,51 @@
                 setPendingNumbers(newPending);
             };
 
-            const shareWhatsApp = (num, userData = null) => {
+            // ENVIAR A TU WHATSAPP (Franklin)
+            const sendToFranklinWhatsApp = (num, userData) => {
+                const nombreCompleto = userData.nombre && userData.apellido 
+                    ? `${userData.nombre} ${userData.apellido}`
+                    : userData.nombre;
+
+                const message = `🎟️ *NUEVA VENTA DE RIFA* 🎟️\n\n` +
+                    `👤 *Cliente:* ${nombreCompleto}\n` +
+                    `📱 *Teléfono:* ${userData.telefono}\n` +
+                    `📧 *Email:* ${userData.email || 'No proporcionado'}\n` +
+                    `🕒 *Fecha:* ${new Date().toLocaleString('es-CO')}\n\n` +
+                    `🎯 *Número Vendido:* ${num.toString().padStart(3, '0')}\n` +
+                    `💰 *Premio:* $1.000.000 COP\n` +
+                    `💵 *Valor Pagado:* $25.000 COP\n\n` +
+                    `✅ *VENTA CONFIRMADA*`;
+
+                const url = `https://wa.me/573197118858?text=${encodeURIComponent(message)}`;
+                window.open(url, '_blank');
+            };
+
+            // MOSTRAR TICKET AL CLIENTE
+            const showClientTicket = (num, userData) => {
+                setCurrentTicket(num);
+                setShowTicket(true);
+            };
+
+            // COMPARTIR TICKET CLIENTE (para que el cliente lo comparta)
+            const shareClientTicket = (num, userData = null) => {
                 const userInfo = userData || ticketData[num] || {};
                 const nombreCompleto = userInfo.nombre && userInfo.apellido 
                     ? `${userInfo.nombre} ${userInfo.apellido}`
                     : userInfo.nombre || 'Cliente';
 
-                const message = `🎟️ *BOLETA DE RIFA - REGISTRADA* 🎟️\n\n` +
-                    `👤 *Cliente:* ${nombreCompleto}\n` +
-                    `📱 *Teléfono:* ${userInfo.telefono || 'Por confirmar'}\n` +
-                    `📧 *Email:* ${userInfo.email || 'No proporcionado'}\n\n` +
-                    `🎯 *Número Jugado:* ${num.toString().padStart(3, '0')}\n` +
+                const message = `🎟️ *BOLETA OFICIAL - RIFA $1.000.000* 🎟️\n\n` +
+                    `👤 *Titular:* ${nombreCompleto}\n` +
+                    `📱 *Teléfono:* ${userInfo.telefono || 'Registrado'}\n\n` +
+                    `🎯 *Mi Número:* ${num.toString().padStart(3, '0')}\n` +
                     `💰 *Premio:* $1.000.000 COP\n` +
-                    `💵 *Valor Boleta:* $25.000 COP\n` +
+                    `💵 *Valor:* $25.000 COP\n` +
                     `🎲 *Sorteo:* Chance Pick 3 Día\n` +
                     `📅 *Fecha:* 16 de Octubre\n\n` +
-                    `💳 *PAGO POR NEQUI:* 3197118858\n\n` +
-                    `🏆 *RESPONSABLE:*\n` +
-                    `Franklin Monsalve\n` +
-                    `📱 WhatsApp: +57 3197118858\n\n` +
-                    `¡Gracias por participar! 🍀`;
+                    `🏆 *Organiza:* Franklin Monsalve\n` +
+                    `📞 *Contacto:* +57 3197118858\n\n` +
+                    `✅ *BOLETA REGISTRADA OFICIALMENTE*\n` +
+                    `¡Mucha suerte! 🍀`;
 
                 const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
                 window.open(url, '_blank');
@@ -135,6 +190,18 @@
             const openNequi = () => {
                 const whatsappUrl = 'https://wa.me/573197118858?text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi';
                 window.open(whatsappUrl, '_blank');
+            };
+
+            // LIMPIAR TODOS LOS DATOS (para testing)
+            const clearAllData = () => {
+                if (confirm('¿Estás seguro de querer limpiar TODOS los datos de la rifa? Esto no se puede deshacer.')) {
+                    localStorage.removeItem('rifaSoldNumbers');
+                    localStorage.removeItem('rifaTicketData');
+                    setSoldNumbers(new Set());
+                    setTicketData({});
+                    setSelectedNumbers(new Set());
+                    alert('Datos limpiados correctamente');
+                }
             };
 
             const numbers = Array.from({ length: 100 }, (_, i) => i);
@@ -173,6 +240,12 @@
                                     >
                                         📱 Pagar por Nequi: 3197118858
                                     </button>
+                                    <button
+                                        onClick={clearAllData}
+                                        className="mt-2 w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-xl transition-all text-sm"
+                                    >
+                                        🗑️ Limpiar Todos los Datos (Solo Admin)
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -186,11 +259,19 @@
                                     🔒 Números vendidos: {soldNumbers.size}/100
                                 </p>
                                 <div className="flex flex-wrap gap-2">
-                                    {Array.from(soldNumbers).sort((a, b) => a - b).map(num => (
-                                        <span key={num} className="bg-red-500 text-white px-3 py-1 rounded-lg font-bold">
-                                            {num.toString().padStart(3, '0')}
-                                        </span>
-                                    ))}
+                                    {Array.from(soldNumbers).sort((a, b) => a - b).map(num => {
+                                        const clientData = ticketData[num];
+                                        return (
+                                            <span 
+                                                key={num} 
+                                                className="bg-red-500 text-white px-3 py-1 rounded-lg font-bold cursor-help"
+                                                title={clientData ? `Cliente: ${clientData.nombre} ${clientData.apellido || ''}\nTel: ${clientData.telefono}` : 'Cliente registrado'}
+                                            >
+                                                {num.toString().padStart(3, '0')}
+                                                {clientData && ' 👤'}
+                                            </span>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -384,7 +465,7 @@
                                             type="submit"
                                             className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
                                         >
-                                            📤 Registrar y Compartir
+                                            📤 Registrar y Enviar
                                         </button>
                                         <button
                                             type="button"
@@ -399,16 +480,32 @@
                         </div>
                     )}
 
-                    {/* Modal del ticket */}
+                    {/* Modal del ticket para el CLIENTE */}
                     {showTicket && currentTicket !== null && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
-                                <div className="text-center border-4 border-dashed border-purple-600 rounded-2xl p-6">
-                                    <div className="text-6xl mb-4">🎟️</div>
-                                    <h2 className="text-3xl font-bold text-purple-900 mb-2">BOLETA DE RIFA</h2>
+                                <div className="text-center border-4 border-dashed border-green-500 rounded-2xl p-6">
+                                    <div className="text-6xl mb-4">✅</div>
+                                    <h2 className="text-3xl font-bold text-green-600 mb-2">¡BOLETA REGISTRADA!</h2>
                                     <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-6xl font-bold py-4 rounded-2xl my-4">
                                         {currentTicket.toString().padStart(3, '0')}
                                     </div>
+                                    
+                                    {ticketData[currentTicket] && (
+                                        <div className="text-left space-y-2 text-gray-800 mb-4">
+                                            <p className="text-lg font-semibold">👤 Titular:</p>
+                                            <p className="text-xl font-bold text-purple-700">
+                                                {ticketData[currentTicket].nombre} 
+                                                {ticketData[currentTicket].apellido && ` ${ticketData[currentTicket].apellido}`}
+                                            </p>
+                                            <p className="text-lg">📱 {ticketData[currentTicket].telefono}</p>
+                                            {ticketData[currentTicket].email && (
+                                                <p className="text-lg">📧 {ticketData[currentTicket].email}</p>
+                                            )}
+                                            <hr className="my-3 border-gray-300" />
+                                        </div>
+                                    )}
+                                    
                                     <div className="text-left space-y-2 text-gray-800">
                                         <p className="text-2xl font-bold text-green-600">Premio: $1.000.000</p>
                                         <p className="text-lg">Valor: $25.000 COP</p>
@@ -416,26 +513,26 @@
                                         <p className="text-lg font-bold">Fecha: 16 de Octubre</p>
                                         <hr className="my-3 border-gray-300" />
                                         <div className="bg-purple-100 rounded-lg p-3 mb-2">
-                                            <p className="text-sm font-semibold text-purple-900">💳 Pagar por Nequi:</p>
+                                            <p className="text-sm font-semibold text-purple-900">💳 Pago por Nequi:</p>
                                             <p className="text-xl font-bold text-purple-600">3197118858</p>
                                         </div>
-                                        <p className="text-sm font-semibold">Responsable:</p>
+                                        <p className="text-sm font-semibold">Organizador:</p>
                                         <p className="font-bold">Franklin Monsalve</p>
                                         <p className="text-purple-600 font-bold">+57 3197118858</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-3 mt-6">
                                     <button
-                                        onClick={openNequi}
-                                        className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                        onClick={() => shareClientTicket(currentTicket, ticketData[currentTicket])}
+                                        className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
                                     >
-                                        📱 Pagar
+                                        📤 Compartir Mi Ticket
                                     </button>
                                     <button
                                         onClick={() => setShowTicket(false)}
                                         className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
                                     >
-                                        ✕ Cerrar
+                                        ✅ Listo
                                     </button>
                                 </div>
                             </div>
