@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rifa Franklin Monsalve - $1.000.000</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 min-h-screen">
+    <div id="app"></div>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        function TalonarioRifa() {
+            const [selectedNumbers, setSelectedNumbers] = useState(new Set());
+            const [soldNumbers, setSoldNumbers] = useState(new Set());
+            const [showTicket, setShowTicket] = useState(false);
+            const [currentTicket, setCurrentTicket] = useState(null);
+            const [showForm, setShowForm] = useState(false);
+            const [formData, setFormData] = useState({
+                nombre: '',
+                apellido: '',
+                telefono: '',
+                email: ''
+            });
+            const [ticketData, setTicketData] = useState({});
+
+            const toggleNumber = (num) => {
+                if (soldNumbers.has(num)) return;
+                
+                const newSelected = new Set(selectedNumbers);
+                if (newSelected.has(num)) {
+                    newSelected.delete(num);
+                } else {
+                    newSelected.add(num);
+                }
+                setSelectedNumbers(newSelected);
+            };
+
+            const openForm = (num) => {
+                setCurrentTicket(num);
+                setShowForm(true);
+                // Resetear formulario
+                setFormData({
+                    nombre: '',
+                    apellido: '',
+                    telefono: '',
+                    email: ''
+                });
+            };
+
+            const handleFormChange = (e) => {
+                setFormData({
+                    ...formData,
+                    [e.target.name]: e.target.value
+                });
+            };
+
+            const submitForm = (e) => {
+                e.preventDefault();
+                if (!formData.nombre || !formData.telefono) {
+                    alert('Por favor completa al menos el nombre y teléfono');
+                    return;
+                }
+
+                // Guardar datos del ticket
+                setTicketData({
+                    ...ticketData,
+                    [currentTicket]: { ...formData }
+                });
+
+                setShowForm(false);
+                shareWhatsApp(currentTicket, formData);
+            };
+
+            const shareWhatsApp = (num, userData = null) => {
+                const userInfo = userData || ticketData[num] || {};
+                const nombreCompleto = userInfo.nombre && userInfo.apellido 
+                    ? `${userInfo.nombre} ${userInfo.apellido}`
+                    : userInfo.nombre || 'Cliente';
+
+                const message = `🎟️ *BOLETA DE RIFA - REGISTRADA* 🎟️\n\n` +
+                    `👤 *Cliente:* ${nombreCompleto}\n` +
+                    `📱 *Teléfono:* ${userInfo.telefono || 'Por confirmar'}\n` +
+                    `📧 *Email:* ${userInfo.email || 'No proporcionado'}\n\n` +
+                    `🎯 *Número Jugado:* ${num.toString().padStart(3, '0')}\n` +
+                    `💰 *Premio:* $1.000.000 COP\n` +
+                    `💵 *Valor Boleta:* $25.000 COP\n` +
+                    `🎲 *Sorteo:* Chance Pick 3 Día\n` +
+                    `📅 *Fecha:* 16 de Octubre\n\n` +
+                    `💳 *PAGO POR NEQUI:* 3197118858\n\n` +
+                    `🏆 *RESPONSABLE:*\n` +
+                    `Franklin Monsalve\n` +
+                    `📱 WhatsApp: +57 3197118858\n\n` +
+                    `¡Gracias por participar! 🍀`;
+
+                const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+                window.open(url, '_blank');
+                
+                // Marcar como vendido
+                const newSold = new Set(soldNumbers);
+                newSold.add(num);
+                setSoldNumbers(newSold);
+                
+                // Quitar de seleccionados
+                const newSelected = new Set(selectedNumbers);
+                newSelected.delete(num);
+                setSelectedNumbers(newSelected);
+            };
+
+            const openNequi = () => {
+                const whatsappUrl = 'https://wa.me/573197118858?text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi';
+                window.open(whatsappUrl, '_blank');
+            };
+
+            const numbers = Array.from({ length: 100 }, (_, i) => i);
+
+            return (
+                <div className="p-4">
+                    {/* Header */}
+                    <div className="max-w-6xl mx-auto mb-8">
+                        <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/20 shadow-2xl">
+                            <div className="text-center">
+                                <h1 className="text-4xl font-bold text-white mb-2">🎰 Gran Rifa 🎰</h1>
+                                <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black font-bold text-3xl py-3 px-6 rounded-2xl inline-block mb-4 shadow-lg">
+                                    $1.000.000 COP
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-white">
+                                    <div className="bg-white/10 rounded-xl p-3">
+                                        <p className="text-sm opacity-80">Valor Boleta</p>
+                                        <p className="text-2xl font-bold">$25.000</p>
+                                    </div>
+                                    <div className="bg-white/10 rounded-xl p-3">
+                                        <p className="text-sm opacity-80">Sorteo</p>
+                                        <p className="text-xl font-bold">Chance Pick 3 Día</p>
+                                    </div>
+                                    <div className="bg-white/10 rounded-xl p-3">
+                                        <p className="text-sm opacity-80">Fecha</p>
+                                        <p className="text-2xl font-bold">16 de Octubre</p>
+                                    </div>
+                                </div>
+                                <div className="mt-4 bg-white/10 rounded-xl p-3">
+                                    <p className="text-sm text-white/80">Responsable</p>
+                                    <p className="text-xl font-bold text-white">Franklin Monsalve</p>
+                                    <p className="text-lg text-yellow-300">+57 3197118858</p>
+                                    <button
+                                        onClick={openNequi}
+                                        className="mt-3 w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:scale-105"
+                                    >
+                                        📱 Pagar por Nequi: 3197118858
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Números vendidos y seleccionados */}
+                    <div className="max-w-6xl mx-auto mb-6 space-y-4">
+                        {soldNumbers.size > 0 && (
+                            <div className="bg-red-500/20 backdrop-blur-lg rounded-2xl p-4 border border-red-400/30">
+                                <p className="text-white font-semibold mb-2">
+                                    🔒 Números vendidos: {soldNumbers.size}/100
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {Array.from(soldNumbers).sort((a, b) => a - b).map(num => (
+                                        <span key={num} className="bg-red-500 text-white px-3 py-1 rounded-lg font-bold">
+                                            {num.toString().padStart(3, '0')}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {selectedNumbers.size > 0 && (
+                            <div className="bg-green-500/20 backdrop-blur-lg rounded-2xl p-4 border border-green-400/30">
+                                <p className="text-white font-semibold mb-2">
+                                    ✅ Números seleccionados: {selectedNumbers.size}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => (
+                                        <span key={num} className="bg-green-500 text-white px-3 py-1 rounded-lg font-bold">
+                                            {num.toString().padStart(3, '0')}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Grid de números */}
+                    <div className="max-w-6xl mx-auto">
+                        <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 mb-8">
+                            {numbers.map((num) => {
+                                const isSelected = selectedNumbers.has(num);
+                                const isSold = soldNumbers.has(num);
+                                const hasData = ticketData[num];
+                                
+                                return (
+                                    <div key={num} className="relative">
+                                        <button
+                                            onClick={() => toggleNumber(num)}
+                                            disabled={isSold}
+                                            className={`w-full aspect-square rounded-xl font-bold text-lg transition-all duration-200 ${
+                                                isSold
+                                                    ? 'bg-red-500/50 text-white cursor-not-allowed opacity-60'
+                                                    : isSelected
+                                                    ? 'bg-green-500 text-white shadow-lg scale-105'
+                                                    : 'bg-white/90 text-purple-900 hover:bg-white hover:scale-105'
+                                            } border-2 border-white/20 shadow-md`}
+                                        >
+                                            {num.toString().padStart(3, '0')}
+                                        </button>
+                                        {isSelected && !isSold && (
+                                            <span className="absolute -top-1 -right-1 text-yellow-400 text-xl">✓</span>
+                                        )}
+                                        {isSold && hasData && (
+                                            <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                                                👤
+                                            </div>
+                                        )}
+                                        {isSold && (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <span className="text-2xl">🔒</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Botones de envío */}
+                    {selectedNumbers.size > 0 && (
+                        <div className="max-w-6xl mx-auto">
+                            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
+                                <h3 className="text-white text-xl font-bold mb-4 text-center">
+                                    Registrar y Enviar Boletas
+                                </h3>
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                    {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => (
+                                        <button
+                                            key={num}
+                                            onClick={() => openForm(num)}
+                                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg hover:scale-105"
+                                        >
+                                            📝 {num.toString().padStart(3, '0')}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Modal del formulario */}
+                    {showForm && (
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
+                                <div className="text-center mb-6">
+                                    <div className="text-4xl mb-2">📝</div>
+                                    <h2 className="text-2xl font-bold text-purple-900">Registrar Boleta</h2>
+                                    <p className="text-gray-600">Número: <span className="font-bold text-2xl text-purple-600">{currentTicket.toString().padStart(3, '0')}</span></p>
+                                </div>
+                                
+                                <form onSubmit={submitForm} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Nombre *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="nombre"
+                                            value={formData.nombre}
+                                            onChange={handleFormChange}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="Ingresa tu nombre"
+                                            required
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Apellido
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="apellido"
+                                            value={formData.apellido}
+                                            onChange={handleFormChange}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="Ingresa tu apellido"
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Teléfono/WhatsApp *
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            name="telefono"
+                                            value={formData.telefono}
+                                            onChange={handleFormChange}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="Ej: 3001234567"
+                                            required
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Email
+                                        </label>
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            value={formData.email}
+                                            onChange={handleFormChange}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="tu@email.com"
+                                        />
+                                    </div>
+                                    
+                                    <div className="flex gap-3 pt-4">
+                                        <button
+                                            type="submit"
+                                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                        >
+                                            📤 Registrar y Compartir
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowForm(false)}
+                                            className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                        >
+                                            ✕ Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Modal del ticket */}
+                    {showTicket && currentTicket !== null && (
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
+                                <div className="text-center border-4 border-dashed border-purple-600 rounded-2xl p-6">
+                                    <div className="text-6xl mb-4">🎟️</div>
+                                    <h2 className="text-3xl font-bold text-purple-900 mb-2">BOLETA DE RIFA</h2>
+                                    <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-6xl font-bold py-4 rounded-2xl my-4">
+                                        {currentTicket.toString().padStart(3, '0')}
+                                    </div>
+                                    <div className="text-left space-y-2 text-gray-800">
+                                        <p className="text-2xl font-bold text-green-600">Premio: $1.000.000</p>
+                                        <p className="text-lg">Valor: $25.000 COP</p>
+                                        <p className="text-lg">Sorteo: Chance Pick 3 Día</p>
+                                        <p className="text-lg font-bold">Fecha: 16 de Octubre</p>
+                                        <hr className="my-3 border-gray-300" />
+                                        <div className="bg-purple-100 rounded-lg p-3 mb-2">
+                                            <p className="text-sm font-semibold text-purple-900">💳 Pagar por Nequi:</p>
+                                            <p className="text-xl font-bold text-purple-600">3197118858</p>
+                                        </div>
+                                        <p className="text-sm font-semibold">Responsable:</p>
+                                        <p className="font-bold">Franklin Monsalve</p>
+                                        <p className="text-purple-600 font-bold">+57 3197118858</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-3 mt-6">
+                                    <button
+                                        onClick={openNequi}
+                                        className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                    >
+                                        📱 Pagar
+                                    </button>
+                                    <button
+                                        onClick={() => setShowTicket(false)}
+                                        className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                    >
+                                        ✕ Cerrar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<TalonarioRifa />, document.getElementById('app'));
+    </script>
+</body>
+</html>
