@@ -11,6 +11,18 @@
             padding: 0;
             font-family: system-ui, -apple-system, sans-serif;
         }
+        /* Mejoras para mobile */
+        .number-grid {
+            grid-template-columns: repeat(5, 1fr);
+        }
+        @media (min-width: 640px) {
+            .number-grid {
+                grid-template-columns: repeat(10, 1fr);
+            }
+        }
+        .number-button {
+            min-height: 44px; /* Tamaño mínimo para touch */
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 min-h-screen">
@@ -61,7 +73,13 @@
             }, [ticketData]);
 
             const toggleNumber = (num) => {
-                if (soldNumbers.has(num) || pendingNumbers.has(num)) return;
+                if (soldNumbers.has(num) || pendingNumbers.has(num)) {
+                    // Si ya está vendido, mostrar alerta en mobile
+                    if (soldNumbers.has(num)) {
+                        alert(`❌ El número ${num.toString().padStart(3, '0')} ya está vendido`);
+                    }
+                    return;
+                }
                 
                 const newSelected = new Set(selectedNumbers);
                 if (newSelected.has(num)) {
@@ -207,65 +225,64 @@
             const numbers = Array.from({ length: 100 }, (_, i) => i);
 
             return (
-                <div className="p-4">
-                    {/* Header */}
-                    <div className="max-w-6xl mx-auto mb-8">
-                        <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/20 shadow-2xl">
+                <div className="p-3 sm:p-4">
+                    {/* Header - Optimizado para mobile */}
+                    <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
+                        <div className="bg-white/10 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/20 shadow-2xl">
                             <div className="text-center">
-                                <h1 className="text-4xl font-bold text-white mb-2">🎰 Gran Rifa 🎰</h1>
-                                <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black font-bold text-3xl py-3 px-6 rounded-2xl inline-block mb-4 shadow-lg">
+                                <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2">🎰 Gran Rifa 🎰</h1>
+                                <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black font-bold text-xl sm:text-3xl py-2 sm:py-3 px-4 sm:px-6 rounded-xl sm:rounded-2xl inline-block mb-3 sm:mb-4 shadow-lg">
                                     $1.000.000 COP
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-white">
-                                    <div className="bg-white/10 rounded-xl p-3">
-                                        <p className="text-sm opacity-80">Valor Boleta</p>
-                                        <p className="text-2xl font-bold">$25.000</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4 text-white">
+                                    <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
+                                        <p className="text-xs sm:text-sm opacity-80">Valor Boleta</p>
+                                        <p className="text-lg sm:text-2xl font-bold">$25.000</p>
                                     </div>
-                                    <div className="bg-white/10 rounded-xl p-3">
-                                        <p className="text-sm opacity-80">Sorteo</p>
-                                        <p className="text-xl font-bold">Chance Pick 3 Día</p>
+                                    <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
+                                        <p className="text-xs sm:text-sm opacity-80">Sorteo</p>
+                                        <p className="text-sm sm:text-xl font-bold">Chance Pick 3</p>
                                     </div>
-                                    <div className="bg-white/10 rounded-xl p-3">
-                                        <p className="text-sm opacity-80">Fecha</p>
-                                        <p className="text-2xl font-bold">16 de Octubre</p>
+                                    <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
+                                        <p className="text-xs sm:text-sm opacity-80">Fecha</p>
+                                        <p className="text-lg sm:text-2xl font-bold">16 Oct</p>
                                     </div>
                                 </div>
-                                <div className="mt-4 bg-white/10 rounded-xl p-3">
-                                    <p className="text-sm text-white/80">Responsable</p>
-                                    <p className="text-xl font-bold text-white">Franklin Monsalve</p>
-                                    <p className="text-lg text-yellow-300">+57 3197118858</p>
+                                <div className="mt-3 sm:mt-4 bg-white/10 rounded-lg sm:rounded-xl p-3">
+                                    <p className="text-xs sm:text-sm text-white/80">Responsable</p>
+                                    <p className="text-lg sm:text-xl font-bold text-white">Franklin Monsalve</p>
+                                    <p className="text-base sm:text-lg text-yellow-300">+57 3197118858</p>
                                     <button
                                         onClick={openNequi}
-                                        className="mt-3 w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:scale-105"
+                                        className="mt-2 sm:mt-3 w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl transition-all shadow-lg hover:scale-105 text-sm sm:text-base"
                                     >
-                                        📱 Pagar por Nequi: 3197118858
+                                        📱 Pagar Nequi: 3197118858
                                     </button>
                                     <button
                                         onClick={clearAllData}
-                                        className="mt-2 w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-xl transition-all text-sm"
+                                        className="mt-2 w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm"
                                     >
-                                        🗑️ Limpiar Todos los Datos (Solo Admin)
+                                        🗑️ Limpiar Datos (Admin)
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Números vendidos y seleccionados */}
-                    <div className="max-w-6xl mx-auto mb-6 space-y-4">
+                    {/* Números vendidos y seleccionados - Mobile optimizado */}
+                    <div className="max-w-6xl mx-auto mb-4 sm:mb-6 space-y-3 sm:space-y-4">
                         {soldNumbers.size > 0 && (
-                            <div className="bg-red-500/20 backdrop-blur-lg rounded-2xl p-4 border border-red-400/30">
-                                <p className="text-white font-semibold mb-2">
-                                    🔒 Números vendidos: {soldNumbers.size}/100
+                            <div className="bg-red-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-red-400/30">
+                                <p className="text-white font-semibold mb-2 text-sm sm:text-base">
+                                    🔒 Vendidos: {soldNumbers.size}/100
                                 </p>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-1 sm:gap-2 max-h-20 overflow-y-auto">
                                     {Array.from(soldNumbers).sort((a, b) => a - b).map(num => {
                                         const clientData = ticketData[num];
                                         return (
                                             <span 
                                                 key={num} 
-                                                className="bg-red-500 text-white px-3 py-1 rounded-lg font-bold cursor-help"
-                                                title={clientData ? `Cliente: ${clientData.nombre} ${clientData.apellido || ''}\nTel: ${clientData.telefono}` : 'Cliente registrado'}
+                                                className="bg-red-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold"
                                             >
                                                 {num.toString().padStart(3, '0')}
                                                 {clientData && ' 👤'}
@@ -277,45 +294,45 @@
                         )}
                         
                         {selectedNumbers.size > 0 && (
-                            <div className="bg-green-500/20 backdrop-blur-lg rounded-2xl p-4 border border-green-400/30">
-                                <p className="text-white font-semibold mb-2">
-                                    ✅ Números seleccionados: {selectedNumbers.size}
+                            <div className="bg-green-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-green-400/30">
+                                <p className="text-white font-semibold mb-2 text-sm sm:text-base">
+                                    ✅ Seleccionados: {selectedNumbers.size}
                                 </p>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-1 sm:gap-2">
                                     {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => (
-                                        <span key={num} className="bg-green-500 text-white px-3 py-1 rounded-lg font-bold">
+                                        <span key={num} className="bg-green-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold">
                                             {num.toString().padStart(3, '0')}
                                         </span>
                                     ))}
                                 </div>
-                                <p className="text-white/70 text-sm mt-2">
-                                    ⚠️ Haz clic en el botón del número para registrarlo
+                                <p className="text-white/70 text-xs sm:text-sm mt-2">
+                                    ⚠️ Toca el botón del número para registrarlo
                                 </p>
                             </div>
                         )}
 
                         {pendingNumbers.size > 0 && (
-                            <div className="bg-yellow-500/20 backdrop-blur-lg rounded-2xl p-4 border border-yellow-400/30">
-                                <p className="text-white font-semibold mb-2">
-                                    ⏳ Números en proceso: {pendingNumbers.size}
+                            <div className="bg-yellow-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-yellow-400/30">
+                                <p className="text-white font-semibold mb-2 text-sm sm:text-base">
+                                    ⏳ En proceso: {pendingNumbers.size}
                                 </p>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-1 sm:gap-2">
                                     {Array.from(pendingNumbers).sort((a, b) => a - b).map(num => (
-                                        <span key={num} className="bg-yellow-500 text-white px-3 py-1 rounded-lg font-bold">
+                                        <span key={num} className="bg-yellow-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold">
                                             {num.toString().padStart(3, '0')}
                                         </span>
                                     ))}
                                 </div>
-                                <p className="text-white/70 text-sm mt-2">
+                                <p className="text-white/70 text-xs sm:text-sm mt-2">
                                     📝 Completando formulario...
                                 </p>
                             </div>
                         )}
                     </div>
 
-                    {/* Grid de números */}
+                    {/* Grid de números - OPTIMIZADO PARA MOBILE */}
                     <div className="max-w-6xl mx-auto">
-                        <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 mb-8">
+                        <div className="grid grid-cols-5 gap-1 sm:gap-2 mb-6 sm:mb-8">
                             {numbers.map((num) => {
                                 const isSelected = selectedNumbers.has(num);
                                 const isSold = soldNumbers.has(num);
@@ -327,7 +344,7 @@
                                         <button
                                             onClick={() => toggleNumber(num)}
                                             disabled={isSold || isPending}
-                                            className={`w-full aspect-square rounded-xl font-bold text-lg transition-all duration-200 ${
+                                            className={`w-full number-button rounded-lg sm:rounded-xl font-bold text-sm sm:text-lg transition-all duration-200 ${
                                                 isSold
                                                     ? 'bg-red-500/50 text-white cursor-not-allowed opacity-60'
                                                     : isPending
@@ -335,24 +352,24 @@
                                                     : isSelected
                                                     ? 'bg-green-500 text-white shadow-lg scale-105'
                                                     : 'bg-white/90 text-purple-900 hover:bg-white hover:scale-105'
-                                            } border-2 border-white/20 shadow-md`}
+                                            } border-2 border-white/20 shadow-md aspect-square`}
                                         >
                                             {num.toString().padStart(3, '0')}
                                         </button>
                                         {isSelected && !isSold && !isPending && (
-                                            <span className="absolute -top-1 -right-1 text-yellow-400 text-xl">✓</span>
+                                            <span className="absolute -top-1 -right-1 text-yellow-400 text-base sm:text-xl">✓</span>
                                         )}
                                         {isPending && (
-                                            <span className="absolute -top-1 -right-1 text-yellow-300 text-xl">⏳</span>
+                                            <span className="absolute -top-1 -right-1 text-yellow-300 text-base sm:text-xl">⏳</span>
                                         )}
                                         {isSold && hasData && (
-                                            <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                                            <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-xs">
                                                 👤
                                             </div>
                                         )}
                                         {isSold && (
                                             <div className="absolute inset-0 flex items-center justify-center">
-                                                <span className="text-2xl">🔒</span>
+                                                <span className="text-xl sm:text-2xl">🔒</span>
                                             </div>
                                         )}
                                     </div>
@@ -361,17 +378,17 @@
                         </div>
                     </div>
 
-                    {/* Botones de envío */}
+                    {/* Botones de envío - Mobile optimizado */}
                     {selectedNumbers.size > 0 && (
                         <div className="max-w-6xl mx-auto">
-                            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
-                                <h3 className="text-white text-xl font-bold mb-4 text-center">
-                                    Registrar Boletas Seleccionadas
+                            <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-white/20">
+                                <h3 className="text-white text-lg sm:text-xl font-bold mb-3 sm:mb-4 text-center">
+                                    Registrar Boletas
                                 </h3>
-                                <p className="text-white/70 text-center mb-4">
-                                    Haz clic en el número para completar los datos del cliente
+                                <p className="text-white/70 text-center mb-3 sm:mb-4 text-xs sm:text-sm">
+                                    Toca el número para completar los datos
                                 </p>
-                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
                                     {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => (
                                         <button
                                             key={num}
@@ -381,7 +398,7 @@
                                                 setPendingNumbers(newPending);
                                                 openForm(num);
                                             }}
-                                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg hover:scale-105"
+                                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-2 sm:py-3 px-2 sm:px-4 rounded-lg sm:rounded-xl transition-all shadow-lg hover:scale-105 text-sm sm:text-base"
                                         >
                                             📝 {num.toString().padStart(3, '0')}
                                         </button>
@@ -391,19 +408,19 @@
                         </div>
                     )}
 
-                    {/* Modal del formulario */}
+                    {/* Modal del formulario - OPTIMIZADO MOBILE */}
                     {showForm && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl">
-                                <div className="text-center mb-6">
-                                    <div className="text-4xl mb-2">📝</div>
-                                    <h2 className="text-2xl font-bold text-purple-900">Registrar Boleta</h2>
-                                    <p className="text-gray-600">Número: <span className="font-bold text-2xl text-purple-600">{currentTicket.toString().padStart(3, '0')}</span></p>
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
+                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
+                                <div className="text-center mb-4 sm:mb-6">
+                                    <div className="text-3xl sm:text-4xl mb-2">📝</div>
+                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Registrar Boleta</h2>
+                                    <p className="text-gray-600 text-sm sm:text-base">Número: <span className="font-bold text-xl sm:text-2xl text-purple-600">{currentTicket.toString().padStart(3, '0')}</span></p>
                                 </div>
                                 
-                                <form onSubmit={submitForm} className="space-y-4">
+                                <form onSubmit={submitForm} className="space-y-3 sm:space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                                             Nombre *
                                         </label>
                                         <input
@@ -411,14 +428,14 @@
                                             name="nombre"
                                             value={formData.nombre}
                                             onChange={handleFormChange}
-                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
                                             placeholder="Ingresa tu nombre"
                                             required
                                         />
                                     </div>
                                     
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                                             Apellido
                                         </label>
                                         <input
@@ -426,13 +443,13 @@
                                             name="apellido"
                                             value={formData.apellido}
                                             onChange={handleFormChange}
-                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
                                             placeholder="Ingresa tu apellido"
                                         />
                                     </div>
                                     
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                                             Teléfono/WhatsApp *
                                         </label>
                                         <input
@@ -440,14 +457,14 @@
                                             name="telefono"
                                             value={formData.telefono}
                                             onChange={handleFormChange}
-                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
                                             placeholder="Ej: 3001234567"
                                             required
                                         />
                                     </div>
                                     
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                                             Email
                                         </label>
                                         <input
@@ -455,22 +472,22 @@
                                             name="email"
                                             value={formData.email}
                                             onChange={handleFormChange}
-                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
                                             placeholder="tu@email.com"
                                         />
                                     </div>
                                     
-                                    <div className="flex gap-3 pt-4">
+                                    <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4">
                                         <button
                                             type="submit"
-                                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
                                         >
-                                            📤 Registrar y Enviar
+                                            📤 Registrar
                                         </button>
                                         <button
                                             type="button"
                                             onClick={cancelForm}
-                                            className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                            className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
                                         >
                                             ✕ Cancelar
                                         </button>
@@ -480,57 +497,57 @@
                         </div>
                     )}
 
-                    {/* Modal del ticket para el CLIENTE */}
+                    {/* Modal del ticket para el CLIENTE - OPTIMIZADO MOBILE */}
                     {showTicket && currentTicket !== null && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
-                                <div className="text-center border-4 border-dashed border-green-500 rounded-2xl p-6">
-                                    <div className="text-6xl mb-4">✅</div>
-                                    <h2 className="text-3xl font-bold text-green-600 mb-2">¡BOLETA REGISTRADA!</h2>
-                                    <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-6xl font-bold py-4 rounded-2xl my-4">
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
+                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-md w-full shadow-2xl mx-2 max-h-[90vh] overflow-y-auto">
+                                <div className="text-center border-4 border-dashed border-green-500 rounded-xl sm:rounded-2xl p-4 sm:p-6">
+                                    <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">✅</div>
+                                    <h2 className="text-xl sm:text-3xl font-bold text-green-600 mb-2">¡BOLETA REGISTRADA!</h2>
+                                    <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-3xl sm:text-6xl font-bold py-2 sm:py-4 rounded-xl sm:rounded-2xl my-3 sm:my-4">
                                         {currentTicket.toString().padStart(3, '0')}
                                     </div>
                                     
                                     {ticketData[currentTicket] && (
-                                        <div className="text-left space-y-2 text-gray-800 mb-4">
-                                            <p className="text-lg font-semibold">👤 Titular:</p>
-                                            <p className="text-xl font-bold text-purple-700">
+                                        <div className="text-left space-y-2 text-gray-800 mb-3 sm:mb-4">
+                                            <p className="text-base sm:text-lg font-semibold">👤 Titular:</p>
+                                            <p className="text-lg sm:text-xl font-bold text-purple-700">
                                                 {ticketData[currentTicket].nombre} 
                                                 {ticketData[currentTicket].apellido && ` ${ticketData[currentTicket].apellido}`}
                                             </p>
-                                            <p className="text-lg">📱 {ticketData[currentTicket].telefono}</p>
+                                            <p className="text-base sm:text-lg">📱 {ticketData[currentTicket].telefono}</p>
                                             {ticketData[currentTicket].email && (
-                                                <p className="text-lg">📧 {ticketData[currentTicket].email}</p>
+                                                <p className="text-base sm:text-lg">📧 {ticketData[currentTicket].email}</p>
                                             )}
-                                            <hr className="my-3 border-gray-300" />
+                                            <hr className="my-2 sm:my-3 border-gray-300" />
                                         </div>
                                     )}
                                     
                                     <div className="text-left space-y-2 text-gray-800">
-                                        <p className="text-2xl font-bold text-green-600">Premio: $1.000.000</p>
-                                        <p className="text-lg">Valor: $25.000 COP</p>
-                                        <p className="text-lg">Sorteo: Chance Pick 3 Día</p>
-                                        <p className="text-lg font-bold">Fecha: 16 de Octubre</p>
-                                        <hr className="my-3 border-gray-300" />
-                                        <div className="bg-purple-100 rounded-lg p-3 mb-2">
-                                            <p className="text-sm font-semibold text-purple-900">💳 Pago por Nequi:</p>
-                                            <p className="text-xl font-bold text-purple-600">3197118858</p>
+                                        <p className="text-lg sm:text-2xl font-bold text-green-600">Premio: $1.000.000</p>
+                                        <p className="text-base sm:text-lg">Valor: $25.000 COP</p>
+                                        <p className="text-base sm:text-lg">Sorteo: Chance Pick 3</p>
+                                        <p className="text-base sm:text-lg font-bold">Fecha: 16 Octubre</p>
+                                        <hr className="my-2 sm:my-3 border-gray-300" />
+                                        <div className="bg-purple-100 rounded-lg p-2 sm:p-3 mb-2">
+                                            <p className="text-xs sm:text-sm font-semibold text-purple-900">💳 Pago Nequi:</p>
+                                            <p className="text-lg sm:text-xl font-bold text-purple-600">3197118858</p>
                                         </div>
-                                        <p className="text-sm font-semibold">Organizador:</p>
+                                        <p className="text-xs sm:text-sm font-semibold">Organizador:</p>
                                         <p className="font-bold">Franklin Monsalve</p>
-                                        <p className="text-purple-600 font-bold">+57 3197118858</p>
+                                        <p className="text-purple-600 font-bold text-sm sm:text-base">+57 3197118858</p>
                                     </div>
                                 </div>
-                                <div className="flex gap-3 mt-6">
+                                <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6">
                                     <button
                                         onClick={() => shareClientTicket(currentTicket, ticketData[currentTicket])}
-                                        className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                        className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
                                     >
-                                        📤 Compartir Mi Ticket
+                                        📤 Compartir
                                     </button>
                                     <button
                                         onClick={() => setShowTicket(false)}
-                                        className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                        className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
                                     >
                                         ✅ Listo
                                     </button>
