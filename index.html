@@ -11,7 +11,6 @@
             padding: 0;
             font-family: system-ui, -apple-system, sans-serif;
         }
-        /* Mejoras para mobile */
         .number-grid {
             grid-template-columns: repeat(5, 1fr);
         }
@@ -21,7 +20,7 @@
             }
         }
         .number-button {
-            min-height: 44px; /* Tamaño mínimo para touch */
+            min-height: 44px;
         }
     </style>
 </head>
@@ -45,7 +44,8 @@
                 nombre: '',
                 apellido: '',
                 telefono: '',
-                email: ''
+                email: '',
+                metodoPago: 'nequi'
             });
             const [ticketData, setTicketData] = useState({});
             const [pendingNumbers, setPendingNumbers] = useState(new Set());
@@ -54,8 +54,7 @@
             const [isAdmin, setIsAdmin] = useState(false);
             const [lastSale, setLastSale] = useState(null);
 
-            // CONTRASEÑA DEL ADMINISTRADOR - CÁMBIALA POR UNA SEGURA
-            const ADMIN_PASSWORD = "Franklin2024"; // ⚠️ CAMBIA ESTA CONTRASEÑA
+            const ADMIN_PASSWORD = "Franklin2024";
 
             // Cargar datos guardados al iniciar
             useEffect(() => {
@@ -89,7 +88,6 @@
 
             const toggleNumber = (num) => {
                 if (soldNumbers.has(num) || pendingNumbers.has(num)) {
-                    // Si ya está vendido, mostrar alerta en mobile
                     if (soldNumbers.has(num)) {
                         alert(`❌ El número ${num.toString().padStart(3, '0')} ya está vendido`);
                     }
@@ -108,12 +106,12 @@
             const openForm = (num) => {
                 setCurrentTicket(num);
                 setShowForm(true);
-                // Resetear formulario
                 setFormData({
                     nombre: '',
                     apellido: '',
                     telefono: '',
-                    email: ''
+                    email: '',
+                    metodoPago: 'nequi'
                 });
             };
 
@@ -143,7 +141,7 @@
                 };
                 setTicketData(newTicketData);
 
-                // Marcar como vendido y quitar de pendientes/seleccionados
+                // Marcar como vendido
                 const newSold = new Set(soldNumbers);
                 newSold.add(currentTicket);
                 setSoldNumbers(newSold);
@@ -163,33 +161,69 @@
                     numero: currentTicket,
                     cliente: formData.nombre + (formData.apellido ? ' ' + formData.apellido : ''),
                     telefono: formData.telefono,
+                    metodoPago: formData.metodoPago,
                     timestamp: new Date().getTime()
                 };
                 setLastSale(saleInfo);
                 
-                // Enviar a tu WhatsApp y mostrar ticket al cliente
-                sendToFranklinWhatsApp(currentTicket, formData);
-                showClientTicket(currentTicket, formData);
+                // Procesar según método de pago
+                procesarMetodoPago(currentTicket, formData);
+            };
+
+            const procesarMetodoPago = (num, userData) => {
+                switch(userData.metodoPago) {
+                    case 'nequi':
+                        abrirNequi();
+                        break;
+                    case 'efectivo':
+                        alert('✅ Has seleccionado pago en efectivo. Coordinaremos la entrega contigo.');
+                        break;
+                    case 'transferencia':
+                        alert('📲 Has seleccionado transferencia. Te enviaremos los datos bancarios.');
+                        break;
+                }
+                
+                // Enviar WhatsApp a Franklin
+                sendToFranklinWhatsApp(num, userData);
+                // Mostrar ticket al cliente
+                showClientTicket(num, userData);
+            };
+
+            const abrirNequi = () => {
+                // Deep link para Nequi
+                const nequiUrl = `nequi://pago?telefono=3197118858&monto=25000`;
+                const fallbackUrl = `https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi`;
+                
+                // Intentar abrir Nequi, si falla abre WhatsApp
+                window.location.href = nequiUrl;
+                setTimeout(() => {
+                    window.open(fallbackUrl, '_blank');
+                }, 1000);
             };
 
             const cancelForm = () => {
                 setShowForm(false);
-                // Si cancelan, quitar de pendientes pero mantener en seleccionados
                 const newPending = new Set(pendingNumbers);
                 newPending.delete(currentTicket);
                 setPendingNumbers(newPending);
             };
 
-            // ENVIAR A TU WHATSAPP (Franklin) - MEJORADO
             const sendToFranklinWhatsApp = (num, userData) => {
                 const nombreCompleto = userData.nombre && userData.apellido 
                     ? `${userData.nombre} ${userData.apellido}`
                     : userData.nombre;
 
+                const metodoPagoText = {
+                    'nequi': '📱 Nequi',
+                    'efectivo': '💵 Efectivo', 
+                    'transferencia': '📲 Transferencia'
+                }[userData.metodoPago];
+
                 const message = `🎟️ *NUEVA VENTA DE RIFA* 🎟️\n\n` +
                     `👤 *Cliente:* ${nombreCompleto}\n` +
                     `📱 *Teléfono:* ${userData.telefono}\n` +
                     `📧 *Email:* ${userData.email || 'No proporcionado'}\n` +
+                    `💰 *Método de Pago:* ${metodoPagoText}\n` +
                     `🕒 *Fecha:* ${new Date().toLocaleString('es-CO')}\n\n` +
                     `🎯 *Número Vendido:* ${num.toString().padStart(3, '0')}\n` +
                     `💰 *Premio:* $1.000.000 COP\n` +
@@ -203,13 +237,11 @@
                 window.open(url, '_blank');
             };
 
-            // MOSTRAR TICKET AL CLIENTE
             const showClientTicket = (num, userData) => {
                 setCurrentTicket(num);
                 setShowTicket(true);
             };
 
-            // COMPARTIR TICKET CLIENTE (para que el cliente lo comparta)
             const shareClientTicket = (num, userData = null) => {
                 const userInfo = userData || ticketData[num] || {};
                 const nombreCompleto = userInfo.nombre && userInfo.apellido 
@@ -233,12 +265,6 @@
                 window.open(url, '_blank');
             };
 
-            const openNequi = () => {
-                const whatsappUrl = 'https://wa.me/573197118858?text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi';
-                window.open(whatsappUrl, '_blank');
-            };
-
-            // SISTEMA DE ADMINISTRADOR
             const openAdminPanel = () => {
                 setShowAdminPanel(true);
                 setAdminPassword('');
@@ -256,7 +282,6 @@
                 }
             };
 
-            // LIMPIAR TODOS LOS DATOS (solo admin)
             const clearAllData = () => {
                 if (!isAdmin) {
                     alert('❌ Solo el administrador puede realizar esta acción');
@@ -274,7 +299,6 @@
                 }
             };
 
-            // EXPORTAR DATOS (solo admin)
             const exportData = () => {
                 if (!isAdmin) {
                     alert('❌ Solo el administrador puede realizar esta acción');
@@ -299,7 +323,6 @@
                 URL.revokeObjectURL(url);
             };
 
-            // CERRAR SESIÓN ADMIN
             const logoutAdmin = () => {
                 setIsAdmin(false);
                 alert('🔒 Sesión de administrador cerrada');
@@ -320,7 +343,7 @@
                         </div>
                     )}
 
-                    {/* Header - Optimizado para mobile */}
+                    {/* Header */}
                     <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
                         <div className="bg-white/10 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/20 shadow-2xl">
                             <div className="text-center">
@@ -346,14 +369,7 @@
                                     <p className="text-xs sm:text-sm text-white/80">Responsable</p>
                                     <p className="text-lg sm:text-xl font-bold text-white">Franklin Monsalve</p>
                                     <p className="text-base sm:text-lg text-yellow-300">+57 3197118858</p>
-                                    <button
-                                        onClick={openNequi}
-                                        className="mt-2 sm:mt-3 w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl transition-all shadow-lg hover:scale-105 text-sm sm:text-base"
-                                    >
-                                        📱 Pagar Nequi: 3197118858
-                                    </button>
                                     
-                                    {/* BOTONES DE ADMINISTRADOR */}
                                     <div className="mt-2 space-y-2">
                                         {!isAdmin ? (
                                             <button
@@ -390,7 +406,7 @@
                         </div>
                     </div>
 
-                    {/* Números vendidos y seleccionados - Mobile optimizado */}
+                    {/* Números vendidos y seleccionados */}
                     <div className="max-w-6xl mx-auto mb-4 sm:mb-6 space-y-3 sm:space-y-4">
                         {soldNumbers.size > 0 && (
                             <div className="bg-red-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-red-400/30">
@@ -451,7 +467,7 @@
                         )}
                     </div>
 
-                    {/* Grid de números - OPTIMIZADO PARA MOBILE */}
+                    {/* Grid de números */}
                     <div className="max-w-6xl mx-auto">
                         <div className="grid grid-cols-5 gap-1 sm:gap-2 mb-6 sm:mb-8">
                             {numbers.map((num) => {
@@ -499,7 +515,7 @@
                         </div>
                     </div>
 
-                    {/* Botones de envío - Mobile optimizado */}
+                    {/* Botones de envío */}
                     {selectedNumbers.size > 0 && (
                         <div className="max-w-6xl mx-auto">
                             <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-white/20">
@@ -529,7 +545,7 @@
                         </div>
                     )}
 
-                    {/* Modal del formulario - OPTIMIZADO MOBILE */}
+                    {/* Modal del formulario */}
                     {showForm && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
                             <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
@@ -596,6 +612,59 @@
                                             className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
                                             placeholder="tu@email.com"
                                         />
+                                    </div>
+
+                                    {/* MÉTODO DE PAGO */}
+                                    <div>
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                                            💰 Método de Pago *
+                                        </label>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="metodoPago"
+                                                    value="nequi"
+                                                    checked={formData.metodoPago === 'nequi'}
+                                                    onChange={handleFormChange}
+                                                    className="text-purple-600 focus:ring-purple-500"
+                                                />
+                                                <span className="flex items-center space-x-2">
+                                                    <span className="text-xl">📱</span>
+                                                    <span className="text-sm font-medium">Nequi (Abrirá la app automáticamente)</span>
+                                                </span>
+                                            </label>
+                                            
+                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="metodoPago"
+                                                    value="efectivo"
+                                                    checked={formData.metodoPago === 'efectivo'}
+                                                    onChange={handleFormChange}
+                                                    className="text-purple-600 focus:ring-purple-500"
+                                                />
+                                                <span className="flex items-center space-x-2">
+                                                    <span className="text-xl">💵</span>
+                                                    <span className="text-sm font-medium">Efectivo (Coordinaremos entrega)</span>
+                                                </span>
+                                            </label>
+                                            
+                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="metodoPago"
+                                                    value="transferencia"
+                                                    checked={formData.metodoPago === 'transferencia'}
+                                                    onChange={handleFormChange}
+                                                    className="text-purple-600 focus:ring-purple-500"
+                                                />
+                                                <span className="flex items-center space-x-2">
+                                                    <span className="text-xl">📲</span>
+                                                    <span className="text-sm font-medium">Transferencia Bancaria</span>
+                                                </span>
+                                            </label>
+                                        </div>
                                     </div>
                                     
                                     <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4">
@@ -665,7 +734,7 @@
                         </div>
                     )}
 
-                    {/* Modal del ticket para el CLIENTE - OPTIMIZADO MOBILE */}
+                    {/* Modal del ticket para el CLIENTE */}
                     {showTicket && currentTicket !== null && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
                             <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-md w-full shadow-2xl mx-2 max-h-[90vh] overflow-y-auto">
@@ -687,6 +756,13 @@
                                             {ticketData[currentTicket].email && (
                                                 <p className="text-base sm:text-lg">📧 {ticketData[currentTicket].email}</p>
                                             )}
+                                            <p className="text-base sm:text-lg font-semibold">
+                                                💰 Método: {
+                                                    ticketData[currentTicket].metodoPago === 'nequi' ? '📱 Nequi' :
+                                                    ticketData[currentTicket].metodoPago === 'efectivo' ? '💵 Efectivo' :
+                                                    '📲 Transferencia'
+                                                }
+                                            </p>
                                             <hr className="my-2 sm:my-3 border-gray-300" />
                                         </div>
                                     )}
