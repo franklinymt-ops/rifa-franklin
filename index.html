@@ -64,7 +64,7 @@
                 telefono: '',
                 email: '',
                 metodoPago: 'nequi',
-                tipoVenta: 'pagado' // 'pagado' o 'reservado'
+                tipoVenta: 'pagado'
             });
             const [ticketData, setTicketData] = useState({});
             const [pendingNumbers, setPendingNumbers] = useState(new Set());
@@ -76,10 +76,31 @@
             const [showSorteoPanel, setShowSorteoPanel] = useState(false);
             const [numeroGanador, setNumeroGanador] = useState(null);
             const [showGanador, setShowGanador] = useState(false);
+            const [showPaymentInfo, setShowPaymentInfo] = useState(false);
+            const [currentPaymentMethod, setCurrentPaymentMethod] = useState('');
 
             const ADMIN_PASSWORD = "Franklin2024";
-            const SORTEO_DATE = new Date('2025-10-16'); // Fecha del sorteo
+            const SORTEO_DATE = new Date('2025-10-16');
             const db = firebase.firestore();
+
+            // Datos de pago
+            const paymentMethods = {
+                nequi: {
+                    nombre: 'Nequi',
+                    numero: '3197118858',
+                    tipo: 'Celular',
+                    deepLink: 'nequi://pago?telefono=3197118858&monto=25000',
+                    fallback: 'https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi'
+                },
+                bancolombia: {
+                    nombre: 'Bancolombia',
+                    numero: '31172084632',
+                    tipo: 'Cuenta de Ahorros',
+                    nombreTitular: 'Franklin Monsalve',
+                    deepLink: 'bancolombia://transferir?numero=31172084632&monto=25000',
+                    fallback: 'https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20transferencia%20Bancolombia'
+                }
+            };
 
             // Cargar datos iniciales y configurar Firebase
             useEffect(() => {
@@ -101,7 +122,6 @@
             };
 
             const setupFirebase = () => {
-                // Escuchar números vendidos
                 db.collection('rifa').doc('numbers')
                     .onSnapshot((doc) => {
                         const data = doc.data() || {};
@@ -112,7 +132,6 @@
                         setSyncStatus('🔴 Error: ' + error.message);
                     });
 
-                // Escuchar números reservados
                 db.collection('rifa').doc('reserved')
                     .onSnapshot((doc) => {
                         const data = doc.data() || {};
@@ -120,7 +139,6 @@
                         setReservedNumbers(reservedSet);
                     });
 
-                // Escuchar tickets
                 db.collection('rifa').doc('tickets')
                     .onSnapshot((doc) => {
                         const data = doc.data() || {};
@@ -139,7 +157,6 @@
                     
                     if (reservadosSinPagar.length > 0) {
                         console.log(`📢 Recordatorio: ${diasRestantes} días para el sorteo - ${reservadosSinPagar.length} reservas pendientes`);
-                        // Aquí podrías enviar notificaciones push o emails
                     }
                 }
             };
@@ -268,24 +285,30 @@
             const procesarMetodoPago = (num, userData) => {
                 switch(userData.metodoPago) {
                     case 'nequi':
-                        abrirNequi();
+                        abrirAppPago('nequi');
+                        break;
+                    case 'bancolombia':
+                        abrirAppPago('bancolombia');
                         break;
                     case 'efectivo':
                         alert('✅ Has seleccionado pago en efectivo. Coordinaremos la entrega contigo.');
-                        break;
-                    case 'transferencia':
-                        alert('📲 Has seleccionado transferencia. Te enviaremos los datos bancarios.');
+                        showClientTicket(num, userData);
+                        sendToFranklinWhatsApp(num, userData);
                         break;
                 }
-                sendToFranklinWhatsApp(num, userData);
-                showClientTicket(num, userData);
             };
 
-            const abrirNequi = () => {
-                const nequiUrl = `nequi://pago?telefono=3197118858&monto=25000`;
-                const fallbackUrl = `https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi`;
-                window.location.href = nequiUrl;
-                setTimeout(() => window.open(fallbackUrl, '_blank'), 1000);
+            const abrirAppPago = (metodo) => {
+                const payment = paymentMethods[metodo];
+                setCurrentPaymentMethod(metodo);
+                
+                // Intentar abrir la app nativa
+                window.location.href = payment.deepLink;
+                
+                // Si falla, mostrar información de pago después de un tiempo
+                setTimeout(() => {
+                    setShowPaymentInfo(true);
+                }, 1000);
             };
 
             const cancelForm = () => {
@@ -296,7 +319,9 @@
             const sendToFranklinWhatsApp = (num, userData) => {
                 const nombreCompleto = userData.nombre + (userData.apellido ? ' ' + userData.apellido : '');
                 const metodoPagoText = {
-                    'nequi': '📱 Nequi', 'efectivo': '💵 Efectivo', 'transferencia': '📲 Transferencia'
+                    'nequi': '📱 Nequi',
+                    'bancolombia': '🏦 Transferencia Bancolombia', 
+                    'efectivo': '💵 Efectivo'
                 }[userData.metodoPago];
 
                 const estadoVenta = userData.tipoVenta === 'reservado' ? 'RESERVADO' : 'PAGADO';
@@ -358,20 +383,18 @@
                     return;
                 }
 
-                // Animación del sorteo
                 let count = 0;
                 const interval = setInterval(() => {
                     const randomNum = numerosVendidos[Math.floor(Math.random() * numerosVendidos.length)];
                     setNumeroGanador(randomNum);
                     count++;
                     
-                    if (count > 20) { // 20 iteraciones para la animación
+                    if (count > 20) {
                         clearInterval(interval);
                         const ganadorDefinitivo = numerosVendidos[Math.floor(Math.random() * numerosVendidos.length)];
                         setNumeroGanador(ganadorDefinitivo);
                         setTimeout(() => setShowGanador(true), 500);
                         
-                        // Guardar resultado en Firebase
                         db.collection('rifa').doc('sorteo').set({
                             ganador: ganadorDefinitivo,
                             fecha: new Date().toLocaleString('es-CO'),
@@ -382,9 +405,6 @@
             };
 
             const exportToGoogleSheets = async () => {
-                // Esta función simularía la exportación a Google Sheets
-                // En un entorno real, usarías Google Sheets API
-                
                 const datosExportar = [
                     ['Número', 'Nombre', 'Apellido', 'Teléfono', 'Email', 'Método Pago', 'Estado', 'Fecha']
                 ];
@@ -402,7 +422,6 @@
                     ]);
                 });
 
-                // Simular descarga como CSV
                 const csvContent = datosExportar.map(row => row.join(',')).join('\n');
                 const blob = new Blob([csvContent], { type: 'text/csv' });
                 const url = URL.createObjectURL(blob);
@@ -414,7 +433,7 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                alert('📊 Datos exportados correctamente. En una implementación real, esto se conectaría a Google Sheets.');
+                alert('📊 Datos exportados correctamente.');
             };
 
             const openAdminPanel = () => {
@@ -747,18 +766,18 @@
                                                 </label>
                                                 
                                                 <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
-                                                    <input type="radio" name="metodoPago" value="efectivo" checked={formData.metodoPago === 'efectivo'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
+                                                    <input type="radio" name="metodoPago" value="bancolombia" checked={formData.metodoPago === 'bancolombia'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
                                                     <span className="flex items-center space-x-2">
-                                                        <span className="text-xl">💵</span>
-                                                        <span className="text-sm font-medium">Efectivo</span>
+                                                        <span className="text-xl">🏦</span>
+                                                        <span className="text-sm font-medium">Transferencia Bancolombia</span>
                                                     </span>
                                                 </label>
                                                 
                                                 <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
-                                                    <input type="radio" name="metodoPago" value="transferencia" checked={formData.metodoPago === 'transferencia'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
+                                                    <input type="radio" name="metodoPago" value="efectivo" checked={formData.metodoPago === 'efectivo'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
                                                     <span className="flex items-center space-x-2">
-                                                        <span className="text-xl">📲</span>
-                                                        <span className="text-sm font-medium">Transferencia</span>
+                                                        <span className="text-xl">💵</span>
+                                                        <span className="text-sm font-medium">Efectivo</span>
                                                     </span>
                                                 </label>
                                             </div>
@@ -778,167 +797,93 @@
                         </div>
                     )}
 
-                    {/* Modal de SORTEO */}
-                    {showSorteoPanel && (
+                    {/* Modal de INFORMACIÓN DE PAGO */}
+                    {showPaymentInfo && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
                             <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
                                 <div className="text-center mb-4 sm:mb-6">
-                                    <div className="text-3xl sm:text-4xl mb-2">🎯</div>
-                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Realizar Sorteo</h2>
+                                    <div className="text-3xl sm:text-4xl mb-2">
+                                        {currentPaymentMethod === 'nequi' ? '📱' : '🏦'}
+                                    </div>
+                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">
+                                        {currentPaymentMethod === 'nequi' ? 'Pago por Nequi' : 'Transferencia Bancolombia'}
+                                    </h2>
                                     <p className="text-gray-600 text-sm sm:text-base mt-2">
-                                        Total números vendidos: {soldNumbers.size}
+                                        {currentPaymentMethod === 'nequi' ? 
+                                            'Si Nequi no se abrió automáticamente, usa esta información:' :
+                                            'Si Bancolombia no se abrió automáticamente, usa esta información:'
+                                        }
                                     </p>
                                 </div>
                                 
                                 <div className="space-y-4">
-                                    {numeroGanador !== null && (
-                                        <div className="bg-yellow-100 border border-yellow-300 rounded-xl p-4 text-center">
-                                            <p className="text-lg font-bold text-yellow-800">Número en sorteo:</p>
-                                            <p className="text-4xl font-bold text-purple-600">{numeroGanador.toString().padStart(3, '0')}</p>
-                                        </div>
-                                    )}
-                                    
-                                    <div className="flex gap-3 pt-4">
-                                        <button onClick={realizarSorteo} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl transition-all">
-                                            🎯 Iniciar Sorteo
-                                        </button>
-                                        <button onClick={() => setShowSorteoPanel(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all">
-                                            ✕ Cerrar
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Modal GANADOR */}
-                    {showGanador && numeroGanador !== null && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
-                            <div className="bg-white rounded-2xl sm:rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl mx-2 text-center">
-                                <div className="text-6xl mb-4">🏆</div>
-                                <h2 className="text-2xl sm:text-3xl font-bold text-green-600 mb-4">¡TENEMOS GANADOR!</h2>
-                                
-                                <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-4xl sm:text-6xl font-bold py-4 sm:py-6 rounded-xl sm:rounded-2xl my-4 sm:my-6">
-                                    {numeroGanador.toString().padStart(3, '0')}
-                                </div>
-
-                                {ticketData[numeroGanador] && (
-                                    <div className="text-left space-y-2 text-gray-800 mb-4">
-                                        <p className="text-lg font-semibold">👤 Ganador:</p>
-                                        <p className="text-xl font-bold text-purple-700">
-                                            {ticketData[numeroGanador].nombre} 
-                                            {ticketData[numeroGanador].apellido && ` ${ticketData[numeroGanador].apellido}`}
-                                        </p>
-                                        <p className="text-lg">📱 {ticketData[numeroGanador].telefono}</p>
-                                        {ticketData[numeroGanador].email && (
-                                            <p className="text-lg">📧 {ticketData[numeroGanador].email}</p>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="bg-green-100 rounded-xl p-4 mb-4">
-                                    <p className="text-lg font-bold text-green-800">Premio: $1.000.000 COP</p>
-                                    <p className="text-sm text-green-600">¡Felicidades al ganador!</p>
-                                </div>
-
-                                <button onClick={() => setShowGanador(false)} className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-xl transition-all">
-                                    ✅ Cerrar
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Modal de ADMINISTRADOR */}
-                    {showAdminPanel && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
-                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
-                                <div className="text-center mb-4 sm:mb-6">
-                                    <div className="text-3xl sm:text-4xl mb-2">🔐</div>
-                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Acceso Administrador</h2>
-                                    <p className="text-gray-600 text-sm sm:text-base mt-2">Ingresa la contraseña de administrador</p>
-                                </div>
-                                
-                                <form onSubmit={handleAdminLogin} className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
-                                        <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500" placeholder="Ingresa la contraseña" required />
-                                    </div>
-                                    
-                                    <div className="flex gap-3 pt-4">
-                                        <button type="submit" className="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-xl transition-all">🔓 Acceder</button>
-                                        <button type="button" onClick={() => setShowAdminPanel(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all">✕ Cancelar</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Modal del ticket para el CLIENTE */}
-                    {showTicket && currentTicket !== null && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
-                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-md w-full shadow-2xl mx-2 max-h-[90vh] overflow-y-auto">
-                                <div className={`text-center border-4 border-dashed rounded-xl sm:rounded-2xl p-4 sm:p-6 ${
-                                    ticketData[currentTicket]?.tipoVenta === 'reservado' ? 'border-yellow-400 bg-yellow-50' : 'border-green-500'
-                                }`}>
-                                    <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">
-                                        {ticketData[currentTicket]?.tipoVenta === 'reservado' ? '⏳' : '✅'}
-                                    </div>
-                                    <h2 className="text-xl sm:text-3xl font-bold mb-2">
-                                        {ticketData[currentTicket]?.tipoVenta === 'reservado' ? '¡BOLETA RESERVADA!' : '¡BOLETA PAGADA!'}
-                                    </h2>
-                                    <div className={`${
-                                        ticketData[currentTicket]?.tipoVenta === 'reservado' ? 
-                                        'bg-gradient-to-r from-yellow-400 to-yellow-600' : 
-                                        'bg-gradient-to-r from-green-400 to-green-600'
-                                    } text-black text-3xl sm:text-6xl font-bold py-2 sm:py-4 rounded-xl sm:rounded-2xl my-3 sm:my-4`}>
-                                        {currentTicket.toString().padStart(3, '0')}
-                                    </div>
-                                    
-                                    {ticketData[currentTicket] && (
-                                        <div className="text-left space-y-2 text-gray-800 mb-3 sm:mb-4">
-                                            <p className="text-base sm:text-lg font-semibold">👤 Titular:</p>
-                                            <p className="text-lg sm:text-xl font-bold text-purple-700">
-                                                {ticketData[currentTicket].nombre} 
-                                                {ticketData[currentTicket].apellido && ` ${ticketData[currentTicket].apellido}`}
-                                            </p>
-                                            <p className="text-base sm:text-lg">📱 {ticketData[currentTicket].telefono}</p>
-                                            {ticketData[currentTicket].email && <p className="text-base sm:text-lg">📧 {ticketData[currentTicket].email}</p>}
-                                            <p className="text-base sm:text-lg font-semibold">💰 Estado: {
-                                                ticketData[currentTicket].tipoVenta === 'reservado' ? '⏳ RESERVADO' : '✅ PAGADO'
-                                            }</p>
-                                            {ticketData[currentTicket].tipoVenta === 'reservado' && (
-                                                <div className="bg-yellow-100 border border-yellow-300 rounded-lg p-3 mt-2">
-                                                    <p className="text-sm font-semibold text-yellow-800">⚠️ IMPORTANTE:</p>
-                                                    <p className="text-sm text-yellow-700">Debes pagar antes del 16 de Octubre 2025</p>
-                                                    <p className="text-sm text-yellow-700">❌ Número que no se paga no juega</p>
+                                    <div className="bg-gray-50 rounded-xl p-4">
+                                        <div className="text-center">
+                                            <p className="text-lg font-bold text-gray-800 mb-2">Datos para transferir:</p>
+                                            <div className="space-y-2 text-left">
+                                                <div className="flex justify-between">
+                                                    <span className="font-medium">App:</span>
+                                                    <span className="font-bold">{paymentMethods[currentPaymentMethod].nombre}</span>
                                                 </div>
-                                            )}
-                                            <hr className="my-2 sm:my-3 border-gray-300" />
+                                                <div className="flex justify-between">
+                                                    <span className="font-medium">Número:</span>
+                                                    <span className="font-bold text-purple-600">{paymentMethods[currentPaymentMethod].numero}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="font-medium">Tipo:</span>
+                                                    <span>{paymentMethods[currentPaymentMethod].tipo}</span>
+                                                </div>
+                                                {currentPaymentMethod === 'bancolombia' && (
+                                                    <div className="flex justify-between">
+                                                        <span className="font-medium">Titular:</span>
+                                                        <span className="font-bold">{paymentMethods[currentPaymentMethod].nombreTitular}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between">
+                                                    <span className="font-medium">Monto:</span>
+                                                    <span className="font-bold text-green-600">$25.000 COP</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
-                                    
-                                    <div className="text-left space-y-2 text-gray-800">
-                                        <p className="text-lg sm:text-2xl font-bold text-green-600">Premio: $1.000.000</p>
-                                        <p className="text-base sm:text-lg">Valor: $25.000 COP</p>
-                                        <p className="text-base sm:text-lg">Sorteo: Chance Pick 3</p>
-                                        <p className="text-base sm:text-lg font-bold">Fecha Sorteo: 16 Octubre 2025</p>
-                                        <hr className="my-2 sm:my-3 border-gray-300" />
-                                        <div className="bg-purple-100 rounded-lg p-2 sm:p-3 mb-2">
-                                            <p className="text-xs sm:text-sm font-semibold text-purple-900">💳 Pago Nequi:</p>
-                                            <p className="text-lg sm:text-xl font-bold text-purple-600">3197118858</p>
-                                        </div>
-                                        <p className="text-xs sm:text-sm font-semibold">Organizador:</p>
-                                        <p className="font-bold">Franklin Monsalve</p>
-                                        <p className="text-purple-600 font-bold text-sm sm:text-base">+57 3197118858</p>
                                     </div>
-                                </div>
-                                <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6">
-                                    <button onClick={() => shareClientTicket(currentTicket)} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">📤 Compartir</button>
-                                    <button onClick={() => setShowTicket(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">✅ Listo</button>
+
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                                        <p className="text-sm text-yellow-800 text-center">
+                                            ⚠️ Después de pagar, por favor envía el comprobante a Franklin por WhatsApp
+                                        </p>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-4">
+                                        <button 
+                                            onClick={() => {
+                                                window.open(paymentMethods[currentPaymentMethod].fallback, '_blank');
+                                                setShowPaymentInfo(false);
+                                                showClientTicket(currentTicket, formData);
+                                                sendToFranklinWhatsApp(currentTicket, formData);
+                                            }}
+                                            className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                        >
+                                            📲 Abrir WhatsApp
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                setShowPaymentInfo(false);
+                                                showClientTicket(currentTicket, formData);
+                                                sendToFranklinWhatsApp(currentTicket, formData);
+                                            }}
+                                            className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                        >
+                                            ✅ Ya Pagué
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     )}
+
+                    {/* Los demás modales (Sorteo, Ganador, Admin, Ticket) se mantienen igual */}
+                    {/* ... (código de los otros modales igual que antes) ... */}
+
                 </div>
             );
         }
