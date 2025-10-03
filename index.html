@@ -135,7 +135,6 @@
             const [updatePaymentData, setUpdatePaymentData] = useState({
                 metodoPago: 'nequi'
             });
-            const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
             const ADMIN_PASSWORD = "Franklin2024";
             const db = firebase.firestore();
@@ -203,7 +202,7 @@
                     });
             };
 
-            // NUEVA FUNCIÓN: Abrir modal para actualizar pago de reserva
+            // FUNCIÓN: Abrir modal para actualizar pago de reserva
             const openUpdatePaymentModal = (num) => {
                 setSelectedReservedNumber(num);
                 setUpdatePaymentData({
@@ -212,7 +211,7 @@
                 setShowUpdatePaymentModal(true);
             };
 
-            // NUEVA FUNCIÓN: Actualizar reserva a pagado
+            // FUNCIÓN: Actualizar reserva a pagado
             const updateReservationToPaid = async (e) => {
                 e.preventDefault();
                 
@@ -270,6 +269,17 @@
 
                     window.open(`https://wa.me/57${ticketInfo.telefono}?text=${encodeURIComponent(confirmationMessage)}`, '_blank');
 
+                    // Enviar notificación al administrador
+                    const adminMessage = `🔄 *ACTUALIZACIÓN DE PAGO CONFIRMADA*\n\n` +
+                        `👤 Cliente: ${ticketInfo.nombre} ${ticketInfo.apellido || ''}\n` +
+                        `📱 Teléfono: ${ticketInfo.telefono}\n` +
+                        `🎯 Número: ${selectedReservedNumber.toString().padStart(3, '0')}\n` +
+                        `💰 Método: ${updatePaymentData.metodoPago}\n` +
+                        `🎫 Ticket: ${ticketInfo.ticketNumber}\n` +
+                        `✅ Estado: PAGADO`;
+
+                    window.open(`https://wa.me/573197118858?text=${encodeURIComponent(adminMessage)}`, '_blank');
+
                     alert('✅ Pago confirmado exitosamente. El número ha sido actualizado a PAGADO.');
 
                 } catch (error) {
@@ -313,7 +323,6 @@
                     email: '',
                     metodoPago: 'nequi'
                 });
-                setPaymentConfirmed(false);
             };
 
             const handleFormChange = (e) => {
@@ -331,34 +340,13 @@
             };
 
             const abrirNequi = () => {
-                const appUrl = "nequi://pago?telefono=3197118858&monto=25000";
-                const fallbackUrl = "https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi";
-                
-                window.location.href = appUrl;
-                setTimeout(() => {
-                    window.open(fallbackUrl, '_blank');
-                }, 500);
+                const message = `Hola Franklin, quiero pagar mi boleta de rifa por Nequi. Números: ${Array.from(selectedNumbers).map(n => n.toString().padStart(3, '0')).join(', ')}`;
+                window.open(`https://api.whatsapp.com/send?phone=573197118858&text=${encodeURIComponent(message)}`, '_blank');
             };
 
             const abrirBancolombia = () => {
-                const appUrl = "bancolombiaper://";
-                const fallbackUrl = "https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Bancolombia";
-                
-                const isAndroid = /Android/i.test(navigator.userAgent);
-                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-                
-                if (isAndroid) {
-                    window.location.href = "intent://sucursalpersonas#Intent;scheme=bancolombia;package=com.todo1.mobile;end";
-                } else if (isIOS) {
-                    window.location.href = "bancolombiaper://";
-                } else {
-                    window.open(fallbackUrl, '_blank');
-                    return;
-                }
-
-                setTimeout(() => {
-                    window.open(fallbackUrl, '_blank');
-                }, 1000);
+                const message = `Hola Franklin, quiero pagar mi boleta de rifa por Bancolombia. Números: ${Array.from(selectedNumbers).map(n => n.toString().padStart(3, '0')).join(', ')}`;
+                window.open(`https://api.whatsapp.com/send?phone=573197118858&text=${encodeURIComponent(message)}`, '_blank');
             };
 
             const generarTicketWhatsApp = (numeros, userData, estado) => {
@@ -420,7 +408,6 @@
                     setSelectedNumbers(new Set());
                     setPendingNumbers(new Set());
                     setShowForm(false);
-                    setPaymentConfirmed(true);
 
                     localStorage.setItem('rifaSoldNumbers', JSON.stringify([...newSold]));
                     localStorage.setItem('rifaTicketData', JSON.stringify(newTicketData));
@@ -494,7 +481,6 @@
                 setSelectedNumbers(new Set());
                 setPendingNumbers(new Set());
                 setShowForm(false);
-                setPaymentConfirmed(true);
 
                 const reservedObj = {};
                 selectedNumbers.forEach(num => { reservedObj[num] = true; });
@@ -607,6 +593,7 @@
                 }
             };
 
+            // FUNCIÓN RESTAURADA: Limpiar todos los datos
             const clearAllData = async () => {
                 if (!isAdmin) {
                     alert('❌ Solo el administrador puede realizar esta acción');
@@ -794,312 +781,472 @@
                         <div className="bg-white/10 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/20 shadow-2xl">
                             <div className="text-center">
                                 <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2">🎰 Gran Rifa 🎰</h1>
-                                <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black font-bold text-xl sm:text-3xl py-2 sm:py-3 px-4 sm:px-6 rounded-xl sm:rounded-2xl inline-block mb-3">
-                                    $1.000.000
+                                <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black font-bold text-xl sm:text-3xl py-2 sm:py-3 px-4 sm:px-6 rounded-xl sm:rounded-2xl inline-block mb-3 sm:mb-4 shadow-lg">
+                                    $1.000.000 COP
                                 </div>
-                                <p className="text-white/90 text-sm sm:text-base mb-4">Sorteo: Chance Pick 3 Noche - 31 de Octubre</p>
-                                <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto">
-                                    <div className="bg-green-500/20 backdrop-blur-sm rounded-xl p-3 border border-green-400/30">
-                                        <p className="text-white font-bold text-lg sm:text-xl">{soldNumbers.size}</p>
-                                        <p className="text-white/80 text-xs sm:text-sm">Vendidos</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4 text-white">
+                                    <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
+                                        <p className="text-xs sm:text-sm opacity-80">Valor Boleta</p>
+                                        <p className="text-lg sm:text-2xl font-bold">$25.000</p>
                                     </div>
-                                    <div className="bg-yellow-500/20 backdrop-blur-sm rounded-xl p-3 border border-yellow-400/30">
-                                        <p className="text-white font-bold text-lg sm:text-xl">{reservedNumbers.size}</p>
-                                        <p className="text-white/80 text-xs sm:text-sm">Reservados</p>
+                                    <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
+                                        <p className="text-xs sm:text-sm opacity-80">Sorteo</p>
+                                        <p className="text-sm sm:text-xl font-bold">Chance Pick 3 Noche</p>
                                     </div>
-                                    <div className="bg-blue-500/20 backdrop-blur-sm rounded-xl p-3 border border-blue-400/30">
-                                        <p className="text-white font-bold text-lg sm:text-xl">{100 - soldNumbers.size - reservedNumbers.size}</p>
-                                        <p className="text-white/80 text-xs sm:text-sm">Disponibles</p>
-                                    </div>
-                                    <div className="bg-purple-500/20 backdrop-blur-sm rounded-xl p-3 border border-purple-400/30">
-                                        <p className="text-white font-bold text-lg sm:text-xl">$25.000</p>
-                                        <p className="text-white/80 text-xs sm:text-sm">Por número</p>
+                                    <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
+                                        <p className="text-xs sm:text-sm opacity-80">Fecha</p>
+                                        <p className="text-lg sm:text-2xl font-bold">31 Oct</p>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Números */}
-                    <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
-                        <div className="bg-white/10 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/20 shadow-2xl">
-                            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Selecciona tus números</h2>
-                            <p className="text-white/80 text-center mb-4 text-sm sm:text-base">Máximo 5 números por persona</p>
-                            
-                            <div className="grid responsive-grid gap-2 sm:gap-3 mb-6">
-                                {numbers.map(num => {
-                                    const isSelected = selectedNumbers.has(num);
-                                    const isSold = soldNumbers.has(num);
-                                    const isReserved = reservedNumbers.has(num);
-                                    const isPending = pendingNumbers.has(num);
+                                <div className="mt-3 sm:mt-4 bg-white/10 rounded-lg sm:rounded-xl p-3">
+                                    <p className="text-xs sm:text-sm text-white/80">Responsable</p>
+                                    <p className="text-lg sm:text-xl font-bold text-white">Franklin Monsalve</p>
+                                    <p className="text-base sm:text-lg text-yellow-300">+57 3197118858</p>
                                     
-                                    let bgColor = 'bg-white/10 hover:bg-white/20';
-                                    let textColor = 'text-white';
-                                    let borderColor = 'border-white/20';
-                                    let statusText = '';
-                                    
-                                    if (isSelected) {
-                                        bgColor = 'bg-blue-500 hover:bg-blue-600';
-                                        borderColor = 'border-blue-400';
-                                    } else if (isSold) {
-                                        bgColor = 'bg-green-500/30';
-                                        borderColor = 'border-green-400/50';
-                                        statusText = '✅';
-                                    } else if (isReserved) {
-                                        bgColor = 'bg-yellow-500/30';
-                                        borderColor = 'border-yellow-400/50';
-                                        statusText = '⏳';
-                                    } else if (isPending) {
-                                        bgColor = 'bg-purple-500/30';
-                                        borderColor = 'border-purple-400/50';
-                                    }
-                                    
-                                    return (
-                                        <button
-                                            key={num}
-                                            onClick={() => toggleNumber(num)}
-                                            disabled={isSold || isReserved}
-                                            className={`responsive-button rounded-xl border-2 font-bold transition-all duration-200 ${bgColor} ${borderColor} ${textColor} relative`}
-                                        >
-                                            {num.toString().padStart(3, '0')}
-                                            {statusText && (
-                                                <span className="absolute -top-1 -right-1 text-xs">{statusText}</span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            
-                            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-                                <button
-                                    onClick={openForm}
-                                    disabled={selectedNumbers.size === 0}
-                                    className={`px-6 py-3 rounded-xl font-bold text-white transition-all duration-200 ${
-                                        selectedNumbers.size === 0 
-                                            ? 'bg-gray-500 cursor-not-allowed' 
-                                            : 'bg-green-500 hover:bg-green-600 shadow-lg'
-                                    }`}
-                                >
-                                    Comprar Números ({selectedNumbers.size})
-                                </button>
-                                
-                                <button
-                                    onClick={showClientTicket}
-                                    className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold transition-all duration-200 shadow-lg"
-                                >
-                                    Ver Mi Ticket
-                                </button>
-                                
-                                {!isAdmin && (
-                                    <button
-                                        onClick={openAdminPanel}
-                                        className="px-6 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl font-bold transition-all duration-200 shadow-lg"
-                                    >
-                                        Admin
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Información de Pago */}
-                    <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
-                        <div className="bg-white/10 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/20 shadow-2xl">
-                            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Información de Pago</h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-sm rounded-xl p-4 border border-green-400/30">
-                                    <h3 className="text-white font-bold text-lg mb-2">📱 Nequi</h3>
-                                    <p className="text-white/90 text-sm mb-2">319 7118858</p>
-                                    <p className="text-white/80 text-xs">Franklin Monsalve</p>
-                                    <button 
-                                        onClick={abrirNequi}
-                                        className="mt-3 w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold transition-all duration-200"
-                                    >
-                                        Pagar con Nequi
-                                    </button>
-                                </div>
-                                
-                                <div className="bg-gradient-to-br from-blue-500/20 to-indigo-500/20 backdrop-blur-sm rounded-xl p-4 border border-blue-400/30">
-                                    <h3 className="text-white font-bold text-lg mb-2">🏦 Bancolombia</h3>
-                                    <p className="text-white/90 text-sm mb-2">Ahorros: 123456789</p>
-                                    <p className="text-white/80 text-xs">Franklin Monsalve</p>
-                                    <button 
-                                        onClick={abrirBancolombia}
-                                        className="mt-3 w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-bold transition-all duration-200"
-                                    >
-                                        Pagar con Bancolombia
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Panel de Administrador */}
-                    {isAdmin && (
-                        <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
-                            <div className="bg-red-500/20 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-red-400/30 shadow-2xl">
-                                <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Panel de Administrador</h2>
-                                
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                                    <button
-                                        onClick={generatePDFReport}
-                                        className="bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-bold transition-all duration-200"
-                                    >
-                                        📊 Generar Reporte
-                                    </button>
-                                    
-                                    <button
-                                        onClick={openDrawPanel}
-                                        className="bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-lg font-bold transition-all duration-200"
-                                    >
-                                        🎲 Realizar Sorteo
-                                    </button>
-                                    
-                                    <button
-                                        onClick={logoutAdmin}
-                                        className="bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-bold transition-all duration-200"
-                                    >
-                                        🔒 Cerrar Sesión
-                                    </button>
-                                </div>
-                                
-                                <div className="bg-black/30 rounded-xl p-4">
-                                    <h3 className="text-white font-bold mb-3">Números Reservados</h3>
-                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                                        {Array.from(reservedNumbers).map(num => {
-                                            const ticketInfo = ticketData[num];
-                                            return (
-                                                <div key={num} className="bg-yellow-500/20 border border-yellow-400/50 rounded-lg p-2">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-white font-bold text-sm">{num.toString().padStart(3, '0')}</span>
-                                                        <button 
-                                                            onClick={() => openUpdatePaymentModal(num)}
-                                                            className="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded"
-                                                        >
-                                                            Pagar
-                                                        </button>
-                                                    </div>
-                                                    <p className="text-white/80 text-xs truncate">{ticketInfo?.nombre || 'Sin info'}</p>
-                                                </div>
-                                            );
-                                        })}
-                                        {reservedNumbers.size === 0 && (
-                                            <p className="text-white/60 text-sm col-span-5 text-center">No hay números reservados</p>
+                                    <div className="mt-2 space-y-2">
+                                        {!isAdmin ? (
+                                            <button onClick={openAdminPanel} className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
+                                                🔐 Acceso Administrador
+                                            </button>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <button onClick={openDrawPanel} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
+                                                    🎰 Realizar Sorteo
+                                                </button>
+                                                <button onClick={generatePDFReport} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
+                                                    📊 Generar Reporte PDF
+                                                </button>
+                                                {/* BOTÓN RESTAURADO: Limpiar datos */}
+                                                <button onClick={clearAllData} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
+                                                    🗑️ Limpiar Todos los Datos
+                                                </button>
+                                                <button onClick={logoutAdmin} className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
+                                                    🔒 Cerrar Sesión
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Números vendidos y seleccionados */}
+                    <div className="max-w-6xl mx-auto mb-4 sm:mb-6 space-y-3 sm:space-y-4">
+                        {soldNumbers.size > 0 && (
+                            <div className="bg-red-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-red-400/30">
+                                <p className="text-white font-semibold mb-2 text-sm sm:text-base">
+                                    🔒 Vendidos: {soldNumbers.size}/100
+                                </p>
+                                <div className="flex flex-wrap gap-1 sm:gap-2 max-h-20 overflow-y-auto">
+                                    {Array.from(soldNumbers).sort((a, b) => a - b).map(num => (
+                                        <span key={num} className="bg-red-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold">
+                                            {num.toString().padStart(3, '0')}
+                                            {ticketData[num] && ' 👤'}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {reservedNumbers.size > 0 && (
+                            <div className="bg-yellow-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-yellow-400/30">
+                                <p className="text-white font-semibold mb-2 text-sm sm:text-base">
+                                    📅 Reservados: {reservedNumbers.size}/100
+                                </p>
+                                <div className="flex flex-wrap gap-1 sm:gap-2 max-h-20 overflow-y-auto">
+                                    {Array.from(reservedNumbers).sort((a, b) => a - b).map(num => (
+                                        <div key={num} className="relative">
+                                            <span className="bg-yellow-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold">
+                                                {num.toString().padStart(3, '0')}
+                                                {ticketData[num] && ' 👤'}
+                                            </span>
+                                            {isAdmin && (
+                                                <button
+                                                    onClick={() => openUpdatePaymentModal(num)}
+                                                    className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-green-600"
+                                                    title="Actualizar a Pagado"
+                                                >
+                                                    💳
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                {isAdmin && reservedNumbers.size > 0 && (
+                                    <p className="text-white/70 text-xs mt-2">
+                                        💡 Haz clic en el icono 💳 para actualizar reservas a pagado
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                        
+                        {selectedNumbers.size > 0 && (
+                            <div className="bg-green-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-green-400/30">
+                                <p className="text-white font-semibold mb-2 text-sm sm:text-base">
+                                    ✅ Seleccionados: {selectedNumbers.size}
+                                </p>
+                                <div className="flex flex-wrap gap-1 sm:gap-2">
+                                    {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => (
+                                        <span key={num} className="bg-green-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold">
+                                            {num.toString().padStart(3, '0')}
+                                        </span>
+                                    ))}
+                                </div>
+                                <p className="text-white/70 text-xs sm:text-sm mt-2">
+                                    ⚠️ Toca el botón "Registrar Boletas" para completar los datos
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Grid de números */}
+                    <div className="max-w-6xl mx-auto">
+                        <div className="grid grid-cols-5 gap-1 sm:gap-2 mb-6 sm:mb-8">
+                            {numbers.map((num) => {
+                                const isSelected = selectedNumbers.has(num);
+                                const isSold = soldNumbers.has(num);
+                                const isReserved = reservedNumbers.has(num);
+                                const isPending = pendingNumbers.has(num);
+                                
+                                return (
+                                    <div key={num} className="relative">
+                                        <button
+                                            onClick={() => toggleNumber(num)}
+                                            disabled={isSold || isReserved || isPending}
+                                            className={`w-full number-button rounded-lg sm:rounded-xl font-bold text-sm sm:text-lg transition-all duration-200 ${
+                                                isSold
+                                                    ? 'bg-red-500/50 text-white cursor-not-allowed opacity-60'
+                                                    : isReserved
+                                                    ? 'bg-yellow-500/50 text-white cursor-not-allowed opacity-60'
+                                                    : isPending
+                                                    ? 'bg-yellow-500 text-white cursor-not-allowed shadow-lg'
+                                                    : isSelected
+                                                    ? 'bg-green-500 text-white shadow-lg scale-105'
+                                                    : 'bg-white/90 text-purple-900 hover:bg-white hover:scale-105'
+                                            } border-2 border-white/20 shadow-md aspect-square`}
+                                        >
+                                            {num.toString().padStart(3, '0')}
+                                        </button>
+                                        {isSelected && !isSold && !isReserved && !isPending && (
+                                            <span className="absolute -top-1 -right-1 text-yellow-400 text-base sm:text-xl">✓</span>
+                                        )}
+                                        {isPending && (
+                                            <span className="absolute -top-1 -right-1 text-yellow-300 text-base sm:text-xl">⏳</span>
+                                        )}
+                                        {isSold && ticketData[num] && (
+                                            <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-xs">
+                                                👤
+                                            </div>
+                                        )}
+                                        {isReserved && ticketData[num] && (
+                                            <div className="absolute -top-1 -right-1 bg-yellow-500 text-white rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-xs">
+                                                📅
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Botones de envío */}
+                    {selectedNumbers.size > 0 && (
+                        <div className="max-w-6xl mx-auto">
+                            <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-white/20">
+                                <h3 className="text-white text-lg sm:text-xl font-bold mb-3 sm:mb-4 text-center">
+                                    Registrar Boletas ({selectedNumbers.size} números)
+                                </h3>
+                                <p className="text-white/70 text-center mb-3 sm:mb-4 text-xs sm:text-sm">
+                                    Total a pagar: ${25000 * selectedNumbers.size} COP
+                                </p>
+                                <div className="flex justify-center">
+                                    <button
+                                        onClick={openForm}
+                                        className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:scale-105 text-base"
+                                    >
+                                        📝 Registrar {selectedNumbers.size} Número(s)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     )}
 
-                    {/* Modal de Formulario */}
+                    {/* Modal del formulario */}
                     {showForm && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                            <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border border-white/20 shadow-2xl">
-                                <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Completar Compra</h2>
-                                
-                                <div className="bg-white/10 rounded-xl p-4 mb-4">
-                                    <p className="text-white font-bold text-center mb-2">Tus Números Seleccionados:</p>
-                                    <div className="flex flex-wrap gap-2 justify-center">
-                                        {Array.from(selectedNumbers).map(num => (
-                                            <span key={num} className="bg-blue-500 text-white px-3 py-1 rounded-lg font-bold">
-                                                {num.toString().padStart(3, '0')}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <p className="text-white text-center mt-2">
-                                        Total a pagar: <span className="font-bold">${25000 * selectedNumbers.size}</span>
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
+                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2 max-h-[90vh] overflow-y-auto">
+                                <div className="text-center mb-4 sm:mb-6">
+                                    <div className="text-3xl sm:text-4xl mb-2">📝</div>
+                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Registrar Boletas</h2>
+                                    <p className="text-gray-600 text-sm sm:text-base">
+                                        Números: <span className="font-bold text-xl text-purple-600">
+                                            {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => num.toString().padStart(3, '0')).join(', ')}
+                                        </span>
+                                    </p>
+                                    <p className="text-gray-600 text-sm font-bold mt-1">
+                                        Total: ${25000 * selectedNumbers.size} COP
                                     </p>
                                 </div>
+                                
+                                <form className="space-y-3 sm:space-y-4">
+                                    <div>
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                                        <input type="text" name="nombre" value={formData.nombre} onChange={handleFormChange} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base" placeholder="Ingresa tu nombre" required />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Apellido</label>
+                                        <input type="text" name="apellido" value={formData.apellido} onChange={handleFormChange} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base" placeholder="Ingresa tu apellido" />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Teléfono/WhatsApp *</label>
+                                        <input type="tel" name="telefono" value={formData.telefono} onChange={handleFormChange} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base" placeholder="Ej: 3001234567" required />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Email</label>
+                                        <input type="email" name="email" value={formData.email} onChange={handleFormChange} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base" placeholder="tu@email.com" />
+                                    </div>
 
-                                {!paymentConfirmed ? (
-                                    <form onSubmit={submitForm}>
-                                        <div className="space-y-3">
-                                            <input
-                                                type="text"
-                                                name="nombre"
-                                                placeholder="Nombre *"
-                                                value={formData.nombre}
-                                                onChange={handleFormChange}
-                                                className="w-full p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                required
-                                            />
-                                            <input
-                                                type="text"
-                                                name="apellido"
-                                                placeholder="Apellido"
-                                                value={formData.apellido}
-                                                onChange={handleFormChange}
-                                                className="w-full p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                            <input
-                                                type="tel"
-                                                name="telefono"
-                                                placeholder="Teléfono *"
-                                                value={formData.telefono}
-                                                onChange={handleFormChange}
-                                                className="w-full p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                required
-                                            />
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                placeholder="Email"
-                                                value={formData.email}
-                                                onChange={handleFormChange}
-                                                className="w-full p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
+                                    {/* Sección de información de pago */}
+                                    <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl p-4 space-y-3">
+                                        <h3 className="font-bold text-center text-gray-800 text-sm">Datos para el Pago</h3>
+                                        <div className="bg-white p-3 rounded-lg border">
+                                            <p className="font-semibold text-purple-700 text-sm">📱 Nequi</p>
+                                            <p className="font-bold text-base text-gray-900">3197118858</p>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-lg border">
+                                            <p className="font-semibold text-blue-800 text-sm">🏦 Bancolombia (Ahorros)</p>
+                                            <p className="font-bold text-base text-gray-900">311-720846-32</p>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">💰 Método de Pago *</label>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-xl">📱</span>
+                                                    <span className="text-sm font-medium">Nequi</span>
+                                                </div>
+                                                <input type="radio" name="metodoPago" value="nequi" checked={formData.metodoPago === 'nequi'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
+                                            </label>
                                             
-                                            <div className="bg-white/10 rounded-xl p-3">
-                                                <label className="text-white font-bold mb-2 block">Método de Pago:</label>
-                                                <select
-                                                    name="metodoPago"
-                                                    value={formData.metodoPago}
-                                                    onChange={handleFormChange}
-                                                    className="w-full p-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                >
-                                                    <option value="nequi">📱 Nequi</option>
-                                                    <option value="bancolombia">🏦 Bancolombia</option>
-                                                    <option value="efectivo">💵 Efectivo</option>
-                                                    <option value="transferencia">📲 Transferencia</option>
-                                                </select>
-                                            </div>
+                                            <label className="flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-xl">🏦</span>
+                                                    <span className="text-sm font-medium">Bancolombia</span>
+                                                </div>
+                                                <input type="radio" name="metodoPago" value="bancolombia" checked={formData.metodoPago === 'bancolombia'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
+                                            </label>
+                                            
+                                            <label className="flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-xl">💵</span>
+                                                    <span className="text-sm font-medium">Efectivo</span>
+                                                </div>
+                                                <input type="radio" name="metodoPago" value="efectivo" checked={formData.metodoPago === 'efectivo'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
+                                            </label>
                                         </div>
+                                    </div>
 
-                                        <div className="form-buttons mt-6">
-                                            <button
-                                                type="submit"
-                                                disabled={isUploading}
-                                                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition-all duration-200 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                                            >
-                                                {isUploading ? 'Procesando...' : '✅ Confirmar Pago'}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={reserveNumber}
-                                                className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
-                                            >
-                                                📅 Reservar
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={cancelForm}
-                                                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
-                                            >
-                                                ❌ Cancelar
-                                            </button>
+                                    {/* Botones para abrir aplicaciones */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button 
+                                            type="button" 
+                                            onClick={abrirNequi}
+                                            className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-3 rounded-lg transition-all text-xs"
+                                        >
+                                            📱 Abrir Nequi
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={abrirBancolombia}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg transition-all text-xs"
+                                        >
+                                            🏦 Abrir Bancolombia
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="form-buttons pt-3 sm:pt-4">
+                                        <button 
+                                            type="button" 
+                                            onClick={submitForm}
+                                            disabled={isUploading}
+                                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {isUploading ? '⏳ Confirmando...' : '💳 Confirmar Pago'}
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={reserveNumber}
+                                            className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                        >
+                                            📅 Reservar (Pagar después)
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={cancelForm}
+                                            className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                        >
+                                            ✕ Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL: Actualizar pago de reserva */}
+                    {showUpdatePaymentModal && selectedReservedNumber !== null && (
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
+                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
+                                <div className="text-center mb-4 sm:mb-6">
+                                    <div className="text-3xl sm:text-4xl mb-2">💳</div>
+                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Actualizar a Pagado</h2>
+                                    <p className="text-gray-600 text-sm sm:text-base">
+                                        Número: <span className="font-bold text-xl text-purple-600">
+                                            {selectedReservedNumber.toString().padStart(3, '0')}
+                                        </span>
+                                    </p>
+                                    {ticketData[selectedReservedNumber] && (
+                                        <div className="mt-2 text-sm text-gray-600">
+                                            <p><strong>Cliente:</strong> {ticketData[selectedReservedNumber].nombre} {ticketData[selectedReservedNumber].apellido}</p>
+                                            <p><strong>Teléfono:</strong> {ticketData[selectedReservedNumber].telefono}</p>
                                         </div>
-                                    </form>
+                                    )}
+                                </div>
+                                
+                                <form className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">💰 Método de Pago *</label>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <input type="radio" name="metodoPago" value="nequi" checked={updatePaymentData.metodoPago === 'nequi'} onChange={handleUpdatePaymentChange} className="text-purple-600 focus:ring-purple-500" />
+                                                <span className="flex items-center space-x-2">
+                                                    <span className="text-xl">📱</span>
+                                                    <span className="text-sm font-medium">Nequi</span>
+                                                </span>
+                                            </label>
+                                            
+                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <input type="radio" name="metodoPago" value="bancolombia" checked={updatePaymentData.metodoPago === 'bancolombia'} onChange={handleUpdatePaymentChange} className="text-purple-600 focus:ring-purple-500" />
+                                                <span className="flex items-center space-x-2">
+                                                    <span className="text-xl">🏦</span>
+                                                    <span className="text-sm font-medium">Bancolombia</span>
+                                                </span>
+                                            </label>
+                                            
+                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <input type="radio" name="metodoPago" value="efectivo" checked={updatePaymentData.metodoPago === 'efectivo'} onChange={handleUpdatePaymentChange} className="text-purple-600 focus:ring-purple-500" />
+                                                <span className="flex items-center space-x-2">
+                                                    <span className="text-xl">💵</span>
+                                                    <span className="text-sm font-medium">Efectivo</span>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex gap-3 pt-4">
+                                        <button 
+                                            type="button" 
+                                            onClick={updateReservationToPaid}
+                                            disabled={isUploading}
+                                            className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {isUploading ? '⏳ Actualizando...' : '✅ Confirmar Pago'}
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setShowUpdatePaymentModal(false)}
+                                            className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                        >
+                                            ✕ Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Modal de ADMINISTRADOR */}
+                    {showAdminPanel && (
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
+                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
+                                <div className="text-center mb-4 sm:mb-6">
+                                    <div className="text-3xl sm:text-4xl mb-2">🔐</div>
+                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Acceso Administrador</h2>
+                                    <p className="text-gray-600 text-sm sm:text-base mt-2">Ingresa la contraseña de administrador</p>
+                                </div>
+                                
+                                <form onSubmit={handleAdminLogin} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
+                                        <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500" placeholder="Ingresa la contraseña" required />
+                                    </div>
+                                    
+                                    <div className="flex gap-3 pt-4">
+                                        <button type="submit" className="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-xl transition-all">🔓 Acceder</button>
+                                        <button type="button" onClick={() => setShowAdminPanel(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all">✕ Cancelar</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Modal de SORTEO */}
+                    {showDrawPanel && (
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
+                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
+                                <div className="text-center mb-4 sm:mb-6">
+                                    <div className="text-3xl sm:text-4xl mb-2">🎰</div>
+                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Realizar Sorteo</h2>
+                                    <p className="text-gray-600 text-sm sm:text-base mt-2">
+                                        {soldNumbers.size === 0 
+                                            ? 'No hay números vendidos para realizar el sorteo'
+                                            : `Números vendidos: ${soldNumbers.size}/100`}
+                                    </p>
+                                </div>
+                                
+                                {drawExecuted ? (
+                                    <div className="text-center">
+                                        <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-4xl sm:text-6xl font-bold py-4 sm:py-6 rounded-xl sm:rounded-2xl my-4">
+                                            {winnerNumber !== null ? winnerNumber.toString().padStart(3, '0') : '---'}
+                                        </div>
+                                        <p className="text-lg sm:text-xl font-bold text-green-600 mb-4">¡SORTEO REALIZADO!</p>
+                                        {winnerNumber !== null && ticketData[winnerNumber] && (
+                                            <div className="bg-gray-100 rounded-xl p-4 mb-4">
+                                                <p className="font-bold text-lg">👤 Ganador:</p>
+                                                <p className="text-xl">{ticketData[winnerNumber].nombre} {ticketData[winnerNumber].apellido}</p>
+                                                <p className="text-lg">📱 {ticketData[winnerNumber].telefono}</p>
+                                            </div>
+                                        )}
+                                        <button 
+                                            onClick={() => setShowDrawPanel(false)}
+                                            className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                        >
+                                            Cerrar
+                                        </button>
+                                    </div>
                                 ) : (
                                     <div className="text-center">
-                                        <div className="text-green-400 text-6xl mb-4">✅</div>
-                                        <h3 className="text-white text-xl font-bold mb-2">¡Pago Confirmado!</h3>
-                                        <p className="text-white/80 mb-4">Tu compra ha sido procesada exitosamente.</p>
-                                        <button
-                                            onClick={() => setShowForm(false)}
-                                            className="bg-blue-500 hover:bg-blue-600 text-white py-3 px-6 rounded-xl font-bold transition-all duration-200"
+                                        <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-4xl sm:text-6xl font-bold py-4 sm:py-6 rounded-xl sm:rounded-2xl my-4 pulse-glow">
+                                            {winnerNumber !== null ? winnerNumber.toString().padStart(3, '0') : '---'}
+                                        </div>
+                                        <button 
+                                            onClick={executeDraw}
+                                            disabled={soldNumbers.size === 0}
+                                            className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            Continuar
+                                            🎰 Realizar Sorteo
+                                        </button>
+                                        <button 
+                                            onClick={() => setShowDrawPanel(false)}
+                                            className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all mt-3"
+                                        >
+                                            Cancelar
                                         </button>
                                     </div>
                                 )}
@@ -1107,183 +1254,59 @@
                         </div>
                     )}
 
-                    {/* Modal de Actualización de Pago */}
-                    {showUpdatePaymentModal && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                            <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border border-white/20 shadow-2xl">
-                                <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Confirmar Pago de Reserva</h2>
-                                
-                                <div className="bg-white/10 rounded-xl p-4 mb-4">
-                                    <p className="text-white text-center">
-                                        Número: <span className="font-bold text-yellow-400">{selectedReservedNumber.toString().padStart(3, '0')}</span>
-                                    </p>
-                                    {ticketData[selectedReservedNumber] && (
-                                        <p className="text-white text-center">
-                                            Cliente: <span className="font-bold">{ticketData[selectedReservedNumber].nombre} {ticketData[selectedReservedNumber].apellido || ''}</span>
-                                        </p>
-                                    )}
-                                </div>
-
-                                <form onSubmit={updateReservationToPaid}>
-                                    <div className="bg-white/10 rounded-xl p-3 mb-4">
-                                        <label className="text-white font-bold mb-2 block">Método de Pago:</label>
-                                        <select
-                                            name="metodoPago"
-                                            value={updatePaymentData.metodoPago}
-                                            onChange={handleUpdatePaymentChange}
-                                            className="w-full p-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        >
-                                            <option value="nequi">📱 Nequi</option>
-                                            <option value="bancolombia">🏦 Bancolombia</option>
-                                            <option value="efectivo">💵 Efectivo</option>
-                                            <option value="transferencia">📲 Transferencia</option>
-                                        </select>
+                    {/* Modal del ticket para el CLIENTE */}
+                    {showTicket && currentTicket !== null && (
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
+                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-md w-full shadow-2xl mx-2 max-h-[90vh] overflow-y-auto">
+                                <div className="text-center border-4 border-dashed border-green-500 rounded-xl sm:rounded-2xl p-4 sm:p-6">
+                                    <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">✅</div>
+                                    <h2 className="text-xl sm:text-3xl font-bold text-green-600 mb-2">¡BOLETA REGISTRADA!</h2>
+                                    <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-3xl sm:text-6xl font-bold py-2 sm:py-4 rounded-xl sm:rounded-2xl my-3 sm:my-4">
+                                        {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => num.toString().padStart(3, '0')).join(', ')}
                                     </div>
-
-                                    <div className="form-buttons">
-                                        <button
-                                            type="submit"
-                                            disabled={isUploading}
-                                            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition-all duration-200 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                                        >
-                                            {isUploading ? 'Procesando...' : '✅ Confirmar Pago'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowUpdatePaymentModal(false)}
-                                            className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
-                                        >
-                                            ❌ Cancelar
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Modal de Ticket */}
-                    {showTicket && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                            <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border-4 border-white shadow-2xl">
-                                <div className="text-center">
-                                    <h2 className="text-2xl sm:text-3xl font-bold text-black mb-4">🎟️ TU TICKET 🎟️</h2>
                                     
-                                    {currentTicket !== null && ticketData[currentTicket] && (
-                                        <div className="bg-white/90 rounded-xl p-4 mb-4 text-black">
-                                            <p className="font-bold text-lg mb-2">{ticketData[currentTicket].nombre} {ticketData[currentTicket].apellido || ''}</p>
-                                            <p className="mb-1">📱 {ticketData[currentTicket].telefono}</p>
-                                            {ticketData[currentTicket].email && <p className="mb-1">📧 {ticketData[currentTicket].email}</p>}
-                                            <p className="mb-1">🎫 {ticketData[currentTicket].ticketNumber}</p>
-                                            <p className="mb-1">📅 {ticketData[currentTicket].fecha}</p>
-                                            <div className="mt-3">
-                                                <p className="font-bold mb-1">Tus Números:</p>
-                                                <div className="flex flex-wrap gap-2 justify-center">
-                                                    {ticketData[currentTicket].numeros?.map(num => (
-                                                        <span key={num} className="bg-blue-500 text-white px-3 py-1 rounded-lg font-bold">
-                                                            {num.toString().padStart(3, '0')}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <div className="mt-3 p-2 bg-green-100 rounded-lg">
-                                                <p className="font-bold text-green-700">Estado: {ticketData[currentTicket].estado === 'pagado' ? '✅ PAGADO' : '📅 RESERVADO'}</p>
-                                            </div>
+                                    {ticketData[currentTicket] && (
+                                        <div className="text-left space-y-2 text-gray-800 mb-3 sm:mb-4">
+                                            <p className="text-base sm:text-lg font-semibold">👤 Titular:</p>
+                                            <p className="text-lg sm:text-xl font-bold text-purple-700">
+                                                {ticketData[currentTicket].nombre} 
+                                                {ticketData[currentTicket].apellido && ` ${ticketData[currentTicket].apellido}`}
+                                            </p>
+                                            <p className="text-base sm:text-lg">📱 {ticketData[currentTicket].telefono}</p>
+                                            {ticketData[currentTicket].email && <p className="text-base sm:text-lg">📧 {ticketData[currentTicket].email}</p>}
+                                            <p className="text-base sm:text-lg font-semibold">💰 Método: {
+                                                ticketData[currentTicket].metodoPago === 'nequi' ? '📱 Nequi' :
+                                                ticketData[currentTicket].metodoPago === 'bancolombia' ? '🏦 Bancolombia' :
+                                                ticketData[currentTicket].metodoPago === 'efectivo' ? '💵 Efectivo' : '📲 Transferencia'
+                                            }</p>
+                                            <p className="text-base sm:text-lg">🎫 Ticket No: {ticketData[currentTicket].ticketNumber}</p>
+                                            <p className="text-base sm:text-lg">📋 Estado: {ticketData[currentTicket].estado === 'pagado' ? '✅ PAGADO' : '📅 RESERVADO'}</p>
+                                            <hr className="my-2 sm:my-3 border-gray-300" />
                                         </div>
                                     )}
                                     
-                                    <div className="flex flex-col sm:flex-row gap-3">
-                                        <button
-                                            onClick={shareClientTicket}
-                                            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
-                                        >
-                                            Compartir Ticket
-                                        </button>
-                                        <button
-                                            onClick={() => setShowTicket(false)}
-                                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
-                                        >
-                                            Cerrar
-                                        </button>
+                                    <div className="text-left space-y-2 text-gray-800">
+                                        <p className="text-lg sm:text-2xl font-bold text-green-600">Premio: $1.000.000</p>
+                                        <p className="text-base sm:text-lg">Valor Total: ${25000 * selectedNumbers.size} COP</p>
+                                        <p className="text-base sm:text-lg">Sorteo: Chance Pick 3 Noche</p>
+                                        <p className="text-base sm:text-lg font-bold">Fecha: 31 Octubre</p>
+                                        <hr className="my-2 sm:my-3 border-gray-300" />
+                                        <div className="bg-purple-100 rounded-lg p-2 sm:p-3 mb-2">
+                                            <p className="text-xs sm:text-sm font-semibold text-purple-900">💳 Pago Nequi:</p>
+                                            <p className="text-lg sm:text-xl font-bold text-purple-600">3197118858</p>
+                                        </div>
+                                        <div className="bg-blue-100 rounded-lg p-2 sm:p-3 mb-2">
+                                            <p className="text-xs sm:text-sm font-semibold text-blue-900">🏦 Bancolombia:</p>
+                                            <p className="text-lg sm:text-xl font-bold text-blue-600">311-720846-32</p>
+                                        </div>
+                                        <p className="text-xs sm:text-sm font-semibold">Organizador:</p>
+                                        <p className="font-bold">Franklin Monsalve</p>
+                                        <p className="text-purple-600 font-bold text-sm sm:text-base">+57 3197118858</p>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Panel de Administrador Login */}
-                    {showAdminPanel && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                            <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border border-white/20 shadow-2xl">
-                                <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Acceso de Administrador</h2>
-                                <form onSubmit={handleAdminLogin}>
-                                    <input
-                                        type="password"
-                                        value={adminPassword}
-                                        onChange={(e) => setAdminPassword(e.target.value)}
-                                        placeholder="Contraseña"
-                                        className="w-full p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-                                    />
-                                    <div className="flex gap-3">
-                                        <button
-                                            type="submit"
-                                            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
-                                        >
-                                            Acceder
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowAdminPanel(false)}
-                                            className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
-                                        >
-                                            Cancelar
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Panel de Sorteo */}
-                    {showDrawPanel && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                            <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border border-white/20 shadow-2xl">
-                                <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Realizar Sorteo</h2>
-                                
-                                <div className="bg-white/10 rounded-xl p-4 mb-4 text-center">
-                                    {drawExecuted ? (
-                                        <div>
-                                            <p className="text-white text-lg mb-2">🎉 ¡SORTEO REALIZADO! 🎉</p>
-                                            <div className="text-4xl font-bold text-yellow-400 mb-2">
-                                                {winnerNumber.toString().padStart(3, '0')}
-                                            </div>
-                                            <p className="text-white">¡Felicidades al ganador!</p>
-                                        </div>
-                                    ) : (
-                                        <div>
-                                            <p className="text-white text-lg mb-2">Número Ganador:</p>
-                                            <div className="text-4xl font-bold text-yellow-400 mb-2">
-                                                {winnerNumber !== null ? winnerNumber.toString().padStart(3, '0') : '---'}
-                                            </div>
-                                            <p className="text-white/80 text-sm">Presiona "Realizar Sorteo" para comenzar</p>
-                                        </div>
-                                    )}
-                                </div>
-                                
-                                <div className="flex flex-col sm:flex-row gap-3">
-                                    {!drawExecuted && (
-                                        <button
-                                            onClick={executeDraw}
-                                            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
-                                        >
-                                            Realizar Sorteo
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={() => setShowDrawPanel(false)}
-                                        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
-                                    >
-                                        Cerrar
-                                    </button>
+                                <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6">
+                                    <button onClick={shareClientTicket} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">📤 Compartir</button>
+                                    <button onClick={() => setShowTicket(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">✅ Listo</button>
                                 </div>
                             </div>
                         </div>
