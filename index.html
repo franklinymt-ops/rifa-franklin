@@ -262,17 +262,30 @@
             };
 
             const abrirBancolombia = () => {
-                // Deep link mejorado para Bancolombia
-                const appUrl = "bancolombia://app";
+                // Deep link específico para Bancolombia Personas
+                const appUrl = "bancolombiaper://";
                 const fallbackUrl = "https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Bancolombia";
                 
-                // Intento abrir la app
-                window.location.href = appUrl;
+                // Detectar si es Android o iOS
+                const isAndroid = /Android/i.test(navigator.userAgent);
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                
+                if (isAndroid) {
+                    // Intent para Android
+                    window.location.href = "intent://sucursalpersonas#Intent;scheme=bancolombia;package=com.todo1.mobile;end";
+                } else if (isIOS) {
+                    // URL scheme para iOS
+                    window.location.href = "bancolombiaper://";
+                } else {
+                    // Escritorio - abrir WhatsApp directamente
+                    window.open(fallbackUrl, '_blank');
+                    return;
+                }
 
-                // Si no abre en 500ms, manda a WhatsApp
+                // Si no abre en 1 segundo, ir a WhatsApp
                 setTimeout(() => {
                     window.open(fallbackUrl, '_blank');
-                }, 500);
+                }, 1000);
             };
 
             const generarTicketWhatsApp = (numeros, userData, estado) => {
