@@ -52,6 +52,32 @@
         .file-label:hover {
             transform: scale(1.05);
         }
+        /* Mejoras responsive */
+        .responsive-grid {
+            grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+        }
+        .responsive-button {
+            min-width: 60px;
+            min-height: 60px;
+            font-size: 0.875rem;
+        }
+        @media (max-width: 380px) {
+            .responsive-button {
+                min-width: 50px;
+                min-height: 50px;
+                font-size: 0.75rem;
+            }
+        }
+        .form-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        @media (min-width: 640px) {
+            .form-buttons {
+                flex-direction: row;
+            }
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 min-h-screen">
@@ -308,7 +334,6 @@
                 });
 
                 procesarMetodoPago(currentTicket, formData, 'pagado');
-                generatePDFReport();
             };
 
             const reserveNumber = async (e) => {
@@ -377,8 +402,7 @@
                 });
 
                 sendToFranklinWhatsApp(currentTicket, formData, 'reservado');
-                showClientTicket(currentTicket, formData, 'reservado');
-                generatePDFReport();
+                openReservationWhatsApp(formData, currentTicket);
             };
 
             const procesarMetodoPago = (num, userData, estado) => {
@@ -394,54 +418,66 @@
                         sendConfirmationWhatsApp(num, userData, estado);
                         break;
                     case 'transferencia':
-                        alert('📲 Has seleccionado transferencia. Te enviaremos los datos bancarios.');
+                        mostrarDatosTransferencia();
                         sendConfirmationWhatsApp(num, userData, estado);
                         break;
                 }
                 
                 if (estado === 'pagado') {
                     sendToFranklinWhatsApp(num, userData, estado);
+                    sendConfirmationWhatsApp(num, userData, estado);
+                    showClientTicket(num, userData, estado);
                 }
-                showClientTicket(num, userData, estado);
             };
 
             const abrirNequi = () => {
                 const nequiUrl = `nequi://pago?telefono=3197118858&monto=25000`;
-                const fallbackUrl = `https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi`;
                 window.location.href = nequiUrl;
+                
+                // Fallback después de 2 segundos si no se abrió la app
                 setTimeout(() => {
                     if (!document.hidden) {
-                        window.open(fallbackUrl, '_blank');
+                        // No abrir WhatsApp automáticamente, solo si el usuario quiere
+                        console.log('No se pudo abrir Nequi');
                     }
-                }, 1000);
+                }, 2000);
             };
 
             const abrirBancolombia = () => {
                 const bancolombiaUrl = `bancolombia://transferencia?cuenta=31172084632&monto=25000`;
-                const fallbackUrl = `https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Bancolombia`;
                 window.location.href = bancolombiaUrl;
+                
+                // Fallback después de 2 segundos si no se abrió la app
                 setTimeout(() => {
                     if (!document.hidden) {
-                        window.open(fallbackUrl, '_blank');
+                        console.log('No se pudo abrir Bancolombia');
                     }
-                }, 1000);
+                }, 2000);
+            };
+
+            const mostrarDatosTransferencia = () => {
+                alert(`🏦 Datos para Transferencia Bancolombia:\n\nCuenta: 31172084632\nTitular: Franklin Monsalve\nMonto: $25.000\n\nUna vez realizada la transferencia, por favor carga el comprobante.`);
+            };
+
+            const openReservationWhatsApp = (userData, num) => {
+                const nombreCompleto = userData.nombre + (userData.apellido ? ' ' + userData.apellido : '');
+                const message = `Hola Franklin, quiero reservar el número ${num.toString().padStart(3, '0')} de la rifa.\n\n*Mis datos:*\nNombre: ${nombreCompleto}\nTeléfono: ${userData.telefono}\nEmail: ${userData.email || 'No proporcionado'}`;
+                
+                window.open(`https://wa.me/573197118858?text=${encodeURIComponent(message)}`, '_blank');
             };
 
             const sendConfirmationWhatsApp = (num, userData, estado) => {
                 const nombreCompleto = userData.nombre + (userData.apellido ? ' ' + userData.apellido : '');
-                const message = `🎟️ *CONFIRMACIÓN DE ${estado.toUpperCase()} - RIFA $1.000.000* 🎟️\n\n` +
+                const message = `🎟️ *CONFIRMACIÓN DE COMPRA - RIFA $1.000.000* 🎟️\n\n` +
+                    `✅ *¡Tu compra ha sido confirmada!*\n\n` +
                     `👤 *Titular:* ${nombreCompleto}\n` +
-                    `📱 *Teléfono:* ${userData.telefono}\n` +
-                    `🎯 *Número Asignado:* ${num.toString().padStart(3, '0')}\n` +
+                    `🎯 *Tu Número:* ${num.toString().padStart(3, '0')}\n` +
                     `💰 *Premio:* $1.000.000 COP\n` +
-                    `💵 *Valor:* $25.000 COP\n` +
-                    `📋 *Estado:* ${estado === 'pagado' ? '✅ PAGADO' : '📅 RESERVADO'}\n` +
+                    `💵 *Valor Pagado:* $25.000 COP\n` +
                     `🎲 *Sorteo:* Chance Pick 3 Noche\n` +
-                    `📅 *Fecha:* 31 de Octubre\n\n` +
-                    `${estado === 'reservado' ? '⚠️ *RECORDATORIO:* Debes pagar antes de la fecha del sorteo. Número que no se paga no juega.\n\n' : ''}` +
+                    `📅 *Fecha del Sorteo:* 31 de Octubre\n\n` +
                     `🏆 *Organiza:* Franklin Monsalve\n` +
                     `📞 *Contacto:* +57 3197118858\n\n` +
-                    `✅ *REGISTRO CONFIRMADO*\n` +
                     `¡Mucha suerte! 🍀`;
 
                 window.open(`https://wa.me/57${userData.telefono}?text=${encodeURIComponent(message)}`, '_blank');
@@ -462,21 +498,14 @@
                     'transferencia': '📲 Transferencia'
                 }[userData.metodoPago];
 
-                const estadoText = estado === 'pagado' ? '✅ PAGADO' : '📅 RESERVADO';
-                const valorText = estado === 'pagado' ? '$25.000 COP' : 'RESERVADO - Pendiente de pago';
-
                 const message = `🎟️ *NUEVA ${estado.toUpperCase()} DE RIFA* 🎟️\n\n` +
                     `👤 *Cliente:* ${nombreCompleto}\n` +
                     `📱 *Teléfono:* ${userData.telefono}\n` +
                     `📧 *Email:* ${userData.email || 'No proporcionado'}\n` +
-                    `💰 *Método de Pago:* ${metodoPagoText}\n` +
-                    `🕒 *Fecha:* ${new Date().toLocaleString('es-CO')}\n\n` +
+                    `💰 *Método de Pago:* ${metodoPagoText}\n\n` +
                     `🎯 *Número Vendido:* ${num.toString().padStart(3, '0')}\n` +
                     `💰 *Premio:* $1.000.000 COP\n` +
-                    `💵 *Valor Pagado:* ${valorText}\n\n` +
-                    `📊 *ESTADÍSTICAS:*\n` +
-                    `* Vendidos: ${soldNumbers.size + (estado === 'pagado' ? 1 : 0)}/100\n` +
-                    `* Disponibles: ${100 - (soldNumbers.size + reservedNumbers.size + (estado === 'pagado' ? 1 : 0))}/100\n\n` +
+                    `💵 *Valor Pagado:* $25.000 COP\n\n` +
                     `${estado === 'pagado' ? '✅ VENTA CONFIRMADA' : '📅 RESERVA CONFIRMADA'}`;
 
                 window.open(`https://wa.me/573197118858?text=${encodeURIComponent(message)}`, '_blank');
@@ -511,7 +540,18 @@
                 window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
             };
 
+            const canGenerateReport = () => {
+                const today = new Date();
+                const drawDate = new Date('2024-10-31');
+                return today > drawDate && isAdmin;
+            };
+
             const generatePDFReport = () => {
+                if (!canGenerateReport()) {
+                    alert('❌ Los reportes solo están disponibles para el administrador después del 31 de Octubre');
+                    return;
+                }
+
                 const doc = new jsPDF();
                 
                 // Título
@@ -570,14 +610,6 @@
                 
                 // Guardar PDF
                 doc.save(`reporte_rifa_${new Date().toISOString().split('T')[0]}.pdf`);
-            };
-
-            const generateConsolidatedReport = () => {
-                if (!isAdmin) {
-                    alert('❌ Solo el administrador puede generar reportes consolidados');
-                    return;
-                }
-                generatePDFReport();
             };
 
             const openAdminPanel = () => {
@@ -665,7 +697,6 @@
                     }
                     
                     alert(`🎉 ¡SORTEO REALIZADO! El número ganador es: ${winner.toString().padStart(3, '0')}`);
-                    generatePDFReport(); // Generar reporte final
                 }
             };
 
@@ -757,7 +788,7 @@
                                                 <button onClick={openDrawPanel} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
                                                     🎰 Realizar Sorteo
                                                 </button>
-                                                <button onClick={generateConsolidatedReport} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
+                                                <button onClick={generatePDFReport} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
                                                     📊 Generar Reporte PDF
                                                 </button>
                                                 <button onClick={clearAllData} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
@@ -831,28 +862,34 @@
                     {showPaymentInfo && (
                         <div className="max-w-6xl mx-auto mb-4 fade-in">
                             <div className="bg-blue-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 border border-blue-400/30">
-                                <h3 className="text-white font-bold text-lg mb-2 text-center">💳 Datos para Pago</h3>
+                                <h3 className="text-white font-bold text-lg mb-3 text-center">💳 Datos para Pago</h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="bg-white/10 rounded-lg p-3">
-                                        <p className="text-white font-semibold mb-1">📱 Nequi</p>
-                                        <p className="text-yellow-300 font-bold text-lg">3197118858</p>
+                                        <p className="text-white font-semibold mb-2">📱 Nequi</p>
+                                        <p className="text-yellow-300 font-bold text-lg mb-3">3197118858</p>
                                         <button 
                                             onClick={abrirNequi}
-                                            className="mt-2 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-3 rounded-lg transition-all text-xs"
+                                            className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-all text-sm"
                                         >
                                             Abrir Nequi
                                         </button>
                                     </div>
                                     <div className="bg-white/10 rounded-lg p-3">
-                                        <p className="text-white font-semibold mb-1">🏦 Bancolombia</p>
-                                        <p className="text-yellow-300 font-bold text-lg">31172084632</p>
+                                        <p className="text-white font-semibold mb-2">🏦 Bancolombia</p>
+                                        <p className="text-yellow-300 font-bold text-lg mb-3">31172084632</p>
                                         <button 
                                             onClick={abrirBancolombia}
-                                            className="mt-2 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg transition-all text-xs"
+                                            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-all text-sm"
                                         >
                                             Abrir Bancolombia
                                         </button>
                                     </div>
+                                </div>
+                                <div className="mt-3 bg-white/10 rounded-lg p-3">
+                                    <p className="text-white font-semibold mb-2">📲 Transferencia</p>
+                                    <p className="text-yellow-300 font-bold text-lg mb-2">Bancolombia Ahorros</p>
+                                    <p className="text-white text-sm">31172084632</p>
+                                    <p className="text-white text-sm">Franklin Monsalve</p>
                                 </div>
                                 <p className="text-white/70 text-xs mt-3 text-center">
                                     ⚠️ Número que no se paga no juega
@@ -863,7 +900,7 @@
 
                     {/* Grid de números */}
                     <div className="max-w-6xl mx-auto">
-                        <div className="grid grid-cols-5 gap-1 sm:gap-2 mb-6 sm:mb-8">
+                        <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 mb-6 sm:mb-8">
                             {numbers.map((num) => {
                                 const isSelected = selectedNumbers.has(num);
                                 const isSold = soldNumbers.has(num);
@@ -875,7 +912,7 @@
                                         <button
                                             onClick={() => toggleNumber(num)}
                                             disabled={isSold || isReserved || isPending}
-                                            className={`w-full number-button rounded-lg sm:rounded-xl font-bold text-sm sm:text-lg transition-all duration-200 ${
+                                            className={`w-full responsive-button rounded-xl font-bold transition-all duration-200 ${
                                                 isSold
                                                     ? 'bg-red-500/50 text-white cursor-not-allowed opacity-60'
                                                     : isReserved
@@ -890,18 +927,18 @@
                                             {num.toString().padStart(3, '0')}
                                         </button>
                                         {isSelected && !isSold && !isReserved && !isPending && (
-                                            <span className="absolute -top-1 -right-1 text-yellow-400 text-base sm:text-xl">✓</span>
+                                            <span className="absolute -top-1 -right-1 text-yellow-400 text-base">✓</span>
                                         )}
                                         {isPending && (
-                                            <span className="absolute -top-1 -right-1 text-yellow-300 text-base sm:text-xl">⏳</span>
+                                            <span className="absolute -top-1 -right-1 text-yellow-300 text-base">⏳</span>
                                         )}
                                         {isSold && ticketData[num] && (
-                                            <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-xs">
+                                            <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">
                                                 👤
                                             </div>
                                         )}
                                         {isReserved && ticketData[num] && (
-                                            <div className="absolute -top-1 -right-1 bg-yellow-500 text-white rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-xs">
+                                            <div className="absolute -top-1 -right-1 bg-yellow-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">
                                                 📅
                                             </div>
                                         )}
@@ -926,7 +963,7 @@
                                         <button
                                             key={num}
                                             onClick={() => openForm(num)}
-                                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-2 sm:py-3 px-2 sm:px-4 rounded-lg sm:rounded-xl transition-all shadow-lg hover:scale-105 text-sm sm:text-base"
+                                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-2 rounded-xl transition-all shadow-lg hover:scale-105 text-sm"
                                         >
                                             📝 {num.toString().padStart(3, '0')}
                                         </button>
@@ -939,7 +976,7 @@
                     {/* Modal del formulario */}
                     {showForm && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
-                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
+                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2 max-h-[90vh] overflow-y-auto">
                                 <div className="text-center mb-4 sm:mb-6">
                                     <div className="text-3xl sm:text-4xl mb-2">📝</div>
                                     <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Registrar Boleta</h2>
@@ -1029,10 +1066,10 @@
                                         </div>
                                     )}
                                     
-                                    <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4">
+                                    <div className="form-buttons pt-3 sm:pt-4">
                                         <button 
                                             type="submit" 
-                                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-4 rounded-xl transition-all text-sm sm:text-base"
                                             disabled={formData.metodoPago !== 'efectivo' && !formData.comprobante}
                                         >
                                             💳 {formData.metodoPago !== 'efectivo' && formData.comprobante ? 'Pagar y Confirmar' : 'Pagar Ahora'}
@@ -1040,11 +1077,11 @@
                                         <button 
                                             type="button" 
                                             onClick={reserveNumber} 
-                                            className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                            className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold py-3 px-4 rounded-xl transition-all text-sm sm:text-base"
                                         >
                                             📅 Reservar
                                         </button>
-                                        <button type="button" onClick={cancelForm} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">
+                                        <button type="button" onClick={cancelForm} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all text-sm sm:text-base">
                                             ✕ Cancelar
                                         </button>
                                     </div>
