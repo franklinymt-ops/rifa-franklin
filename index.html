@@ -245,6 +245,37 @@
                 });
             };
 
+            const abrirNequi = () => {
+                const appUrl = "nequi://pago?telefono=3197118858&monto=25000";
+                const fallbackUrl = "https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi";
+                
+                // Intento abrir la app
+                window.location.href = appUrl;
+
+                // Si no abre en 500ms, manda a WhatsApp
+                setTimeout(() => {
+                    window.open(fallbackUrl, '_blank');
+                }, 500);
+            };
+
+            const abrirBancolombia = () => {
+                const appUrl = "bancolombia://";
+                const fallbackAndroid = "https://play.google.com/store/apps/details?id=com.bancolombia.bankapp";
+                const fallbackiOS = "https://apps.apple.com/co/app/bancolombia-app-personas/id1009459619";
+
+                // Detectar sistema operativo
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                const fallback = isIOS ? fallbackiOS : fallbackAndroid;
+
+                // Intento abrir la app
+                window.location.href = appUrl;
+
+                // Si no abre en 500ms, manda a tienda
+                setTimeout(() => {
+                    window.location.href = fallback;
+                }, 500);
+            };
+
             const submitForm = async (e) => {
                 e.preventDefault();
                 if (!formData.nombre || !formData.telefono) {
@@ -417,20 +448,6 @@
                 window.open(`https://wa.me/573197118858?text=${encodeURIComponent(message)}`, '_blank');
             };
 
-            const abrirNequi = () => {
-                const nequiUrl = `nequi://pago?telefono=3197118858&monto=25000`;
-                const fallbackUrl = `https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi`;
-                window.location.href = nequiUrl;
-                setTimeout(() => window.open(fallbackUrl, '_blank'), 1000);
-            };
-
-            const abrirBancolombia = () => {
-                const bancolombiaUrl = `bancolombia://transferencia?cuenta=31172084632&monto=25000`;
-                const fallbackUrl = `https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Bancolombia`;
-                window.location.href = bancolombiaUrl;
-                setTimeout(() => window.open(fallbackUrl, '_blank'), 1000);
-            };
-
             const cancelForm = () => {
                 setShowForm(false);
                 setPendingNumbers(new Set([...pendingNumbers].filter(n => n !== currentTicket)));
@@ -523,37 +540,66 @@
                 
                 // Fecha de generación
                 doc.setFontSize(10);
-                doc.text(`Generado: ${new Date().toLocaleString('es-CO')}`, 105, 22, { align: 'center' });
+                doc.text(`Fecha de generación: ${new Date().toLocaleString('es-CO')}`, 105, 22, { align: 'center' });
+                doc.text('Sorteo: Chance Pick 3 Noche - 31 de Octubre', 105, 28, { align: 'center' });
                 
-                // Estadísticas
+                // Preparar datos para la tabla
+                const tableData = [];
+                
+                // Obtener todos los tickets (vendidos y reservados)
+                const allTickets = Object.entries(ticketData)
+                    .map(([numero, data]) => ({
+                        ...data,
+                        numero: parseInt(numero)
+                    }))
+                    .sort((a, b) => a.ticketNumber.localeCompare(b.ticketNumber));
+                
+                // Agregar filas a la tabla
+                allTickets.forEach(ticket => {
+                    tableData.push([
+                        ticket.ticketNumber,
+                        `${ticket.nombre} ${ticket.apellido || ''}`.trim(),
+                        ticket.numero.toString().padStart(3, '0'),
+                        ticket.telefono,
+                        ticket.email || '',
+                        ticket.estado === 'pagado' ? 'PAGADO' : 'RESERVADO',
+                        ticket.metodoPago
+                    ]);
+                });
+                
+                // Crear tabla
+                doc.autoTable({
+                    startY: 35,
+                    head: [['Ticket', 'Cliente', 'Número', 'Teléfono', 'Email', 'Estado', 'Método Pago']],
+                    body: tableData,
+                    theme: 'grid',
+                    headStyles: { 
+                        fillColor: [79, 70, 229],
+                        textColor: 255,
+                        fontStyle: 'bold'
+                    },
+                    styles: {
+                        fontSize: 8,
+                        cellPadding: 2
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 20 },
+                        1: { cellWidth: 30 },
+                        2: { cellWidth: 15 },
+                        3: { cellWidth: 25 },
+                        4: { cellWidth: 30 },
+                        5: { cellWidth: 15 },
+                        6: { cellWidth: 20 }
+                    }
+                });
+                
+                // Estadísticas al final
+                const finalY = doc.lastAutoTable.finalY + 10;
                 doc.setFontSize(12);
-                doc.text(`Números vendidos: ${soldNumbers.size}/100`, 14, 35);
-                doc.text(`Números reservados: ${reservedNumbers.size}/100`, 14, 42);
-                doc.text(`Números disponibles: ${100 - soldNumbers.size - reservedNumbers.size}/100`, 14, 49);
-                
-                // Tabla de números vendidos
-                if (soldNumbers.size > 0) {
-                    const soldData = Array.from(soldNumbers).sort((a, b) => a - b).map(num => {
-                        const ticket = ticketData[num] || {};
-                        return [
-                            num.toString().padStart(3, '0'),
-                            `${ticket.nombre || ''} ${ticket.apellido || ''}`.trim(),
-                            ticket.telefono || '',
-                            ticket.metodoPago || '',
-                            ticket.fecha || ''
-                        ];
-                    });
-                    
-                    doc.autoTable({
-                        startY: 55,
-                        head: [['Número', 'Cliente', 'Teléfono', 'Método Pago', 'Fecha']],
-                        body: soldData,
-                        theme: 'grid',
-                        headStyles: { fillColor: [79, 70, 229] }
-                    });
-                } else {
-                    doc.text('No hay números vendidos', 14, 65);
-                }
+                doc.setFont(undefined, 'bold');
+                doc.text(`**Total vendidos: ${soldNumbers.size}**`, 14, finalY);
+                doc.text(`**Total reservados: ${reservedNumbers.size}**`, 14, finalY + 6);
+                doc.text(`**Disponibles: ${100 - soldNumbers.size - reservedNumbers.size}**`, 14, finalY + 12);
                 
                 // Guardar PDF
                 doc.save(`reporte_rifa_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -847,48 +893,64 @@
                                         <input type="email" name="email" value={formData.email} onChange={handleFormChange} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base" placeholder="tu@email.com" />
                                     </div>
 
-                                    {/* Sección de información de pago */}
+                                    {/* Sección de información de pago - SOLO DATOS */}
                                     <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl p-4 space-y-3">
                                         <h3 className="font-bold text-center text-gray-800 text-sm">Datos para el Pago</h3>
                                         <div className="bg-white p-3 rounded-lg border">
                                             <p className="font-semibold text-purple-700 text-sm">📱 Nequi</p>
                                             <p className="font-bold text-base text-gray-900">3197118858</p>
-                                            <button type="button" onClick={abrirNequi} className="mt-2 w-full bg-purple-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-600 transition-all text-xs">Abrir Nequi</button>
                                         </div>
                                         <div className="bg-white p-3 rounded-lg border">
                                             <p className="font-semibold text-blue-800 text-sm">🏦 Bancolombia (Ahorros)</p>
                                             <p className="font-bold text-base text-gray-900">311-720846-32</p>
-                                            <button type="button" onClick={abrirBancolombia} className="mt-2 w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-all text-xs">Abrir Bancolombia</button>
                                         </div>
                                     </div>
 
                                     <div>
                                         <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">💰 Método de Pago *</label>
                                         <div className="space-y-2">
-                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
-                                                <input type="radio" name="metodoPago" value="nequi" checked={formData.metodoPago === 'nequi'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
-                                                <span className="flex items-center space-x-2">
+                                            <label className="flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <div className="flex items-center space-x-2">
                                                     <span className="text-xl">📱</span>
                                                     <span className="text-sm font-medium">Nequi</span>
-                                                </span>
+                                                </div>
+                                                <input type="radio" name="metodoPago" value="nequi" checked={formData.metodoPago === 'nequi'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
                                             </label>
                                             
-                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
-                                                <input type="radio" name="metodoPago" value="bancolombia" checked={formData.metodoPago === 'bancolombia'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
-                                                <span className="flex items-center space-x-2">
+                                            <label className="flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <div className="flex items-center space-x-2">
                                                     <span className="text-xl">🏦</span>
                                                     <span className="text-sm font-medium">Bancolombia</span>
-                                                </span>
+                                                </div>
+                                                <input type="radio" name="metodoPago" value="bancolombia" checked={formData.metodoPago === 'bancolombia'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
                                             </label>
                                             
-                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
-                                                <input type="radio" name="metodoPago" value="efectivo" checked={formData.metodoPago === 'efectivo'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
-                                                <span className="flex items-center space-x-2">
+                                            <label className="flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <div className="flex items-center space-x-2">
                                                     <span className="text-xl">💵</span>
                                                     <span className="text-sm font-medium">Efectivo</span>
-                                                </span>
+                                                </div>
+                                                <input type="radio" name="metodoPago" value="efectivo" checked={formData.metodoPago === 'efectivo'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
                                             </label>
                                         </div>
+                                    </div>
+
+                                    {/* Botones para abrir aplicaciones */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button 
+                                            type="button" 
+                                            onClick={abrirNequi}
+                                            className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-3 rounded-lg transition-all text-xs"
+                                        >
+                                            📱 Abrir Nequi
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={abrirBancolombia}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg transition-all text-xs"
+                                        >
+                                            🏦 Abrir Bancolombia
+                                        </button>
                                     </div>
 
                                     {/* Campo para subir comprobante */}
