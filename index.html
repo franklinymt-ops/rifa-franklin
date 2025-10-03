@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rifa Franklin Monsalve - $1.000.000</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
@@ -40,6 +42,16 @@
             50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
             100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
         }
+        .file-input {
+            display: none;
+        }
+        .file-label {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .file-label:hover {
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 min-h-screen">
@@ -65,6 +77,7 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
+        const { jsPDF } = window.jspdf;
 
         function TalonarioRifa() {
             const [selectedNumbers, setSelectedNumbers] = useState(new Set());
@@ -77,7 +90,8 @@
                 apellido: '',
                 telefono: '',
                 email: '',
-                metodoPago: 'nequi'
+                metodoPago: 'nequi',
+                comprobante: null
             });
             const [ticketData, setTicketData] = useState({});
             const [pendingNumbers, setPendingNumbers] = useState(new Set());
@@ -91,6 +105,7 @@
             const [showDrawPanel, setShowDrawPanel] = useState(false);
             const [winnerNumber, setWinnerNumber] = useState(null);
             const [drawExecuted, setDrawExecuted] = useState(false);
+            const [ticketCounter, setTicketCounter] = useState(1);
 
             const ADMIN_PASSWORD = "Franklin2024";
             const db = firebase.firestore();
@@ -106,11 +121,13 @@
                 const savedTicketData = localStorage.getItem('rifaTicketData');
                 const savedAdmin = localStorage.getItem('rifaAdmin');
                 const savedReservedNumbers = localStorage.getItem('rifaReservedNumbers');
+                const savedTicketCounter = localStorage.getItem('rifaTicketCounter');
                 
                 if (savedSoldNumbers) setSoldNumbers(new Set(JSON.parse(savedSoldNumbers)));
                 if (savedTicketData) setTicketData(JSON.parse(savedTicketData));
                 if (savedAdmin) setIsAdmin(JSON.parse(savedAdmin));
                 if (savedReservedNumbers) setReservedNumbers(new Set(JSON.parse(savedReservedNumbers)));
+                if (savedTicketCounter) setTicketCounter(parseInt(savedTicketCounter));
             };
 
             const setupFirebase = () => {
@@ -149,6 +166,15 @@
                             setDrawExecuted(true);
                         }
                     });
+
+                // Escuchar contador de tickets
+                db.collection('rifa').doc('metadata')
+                    .onSnapshot((doc) => {
+                        const data = doc.data() || {};
+                        if (data.ticketCounter !== undefined) {
+                            setTicketCounter(data.ticketCounter);
+                        }
+                    });
             };
 
             const toggleNumber = (num) => {
@@ -180,7 +206,8 @@
                     apellido: '',
                     telefono: '',
                     email: '',
-                    metodoPago: 'nequi'
+                    metodoPago: 'nequi',
+                    comprobante: null
                 });
                 setShowPaymentInfo(true);
             };
@@ -192,6 +219,16 @@
                 });
             };
 
+            const handleFileChange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    setFormData({
+                        ...formData,
+                        comprobante: file
+                    });
+                }
+            };
+
             const submitForm = async (e) => {
                 e.preventDefault();
                 if (!formData.nombre || !formData.telefono) {
@@ -199,12 +236,22 @@
                     return;
                 }
 
+                if (formData.metodoPago !== 'efectivo' && !formData.comprobante) {
+                    alert('❌ Por favor carga el comprobante de pago');
+                    return;
+                }
+
+                const ticketNumber = `TK-${ticketCounter.toString().padStart(5, '0')}`;
+                const newTicketCounter = ticketCounter + 1;
+
                 const ticketInfo = {
                     ...formData,
                     fecha: new Date().toLocaleString('es-CO'),
                     numero: currentTicket,
                     timestamp: new Date().getTime(),
-                    estado: 'pagado'
+                    estado: 'pagado',
+                    ticketNumber: ticketNumber,
+                    comprobanteCargado: !!formData.comprobante
                 };
 
                 // Actualizar estado local
@@ -222,6 +269,7 @@
                 setSelectedNumbers(newSelected);
                 setPendingNumbers(newPending);
                 setReservedNumbers(newReserved);
+                setTicketCounter(newTicketCounter);
                 setShowForm(false);
                 setShowPaymentInfo(false);
 
@@ -229,6 +277,7 @@
                 localStorage.setItem('rifaSoldNumbers', JSON.stringify([...newSold]));
                 localStorage.setItem('rifaTicketData', JSON.stringify(newTicketData));
                 localStorage.setItem('rifaReservedNumbers', JSON.stringify([...newReserved]));
+                localStorage.setItem('rifaTicketCounter', newTicketCounter.toString());
 
                 // Guardar en Firebase
                 try {
@@ -237,6 +286,9 @@
                     
                     await db.collection('rifa').doc('numbers').set(numbersObj);
                     await db.collection('rifa').doc('tickets').set(newTicketData);
+                    await db.collection('rifa').doc('metadata').set({
+                        ticketCounter: newTicketCounter
+                    }, { merge: true });
                     
                     const reservedObj = {};
                     newReserved.forEach(num => { reservedObj[num] = true; });
@@ -256,6 +308,7 @@
                 });
 
                 procesarMetodoPago(currentTicket, formData, 'pagado');
+                generatePDFReport();
             };
 
             const reserveNumber = async (e) => {
@@ -265,12 +318,17 @@
                     return;
                 }
 
+                const ticketNumber = `TK-${ticketCounter.toString().padStart(5, '0')}`;
+                const newTicketCounter = ticketCounter + 1;
+
                 const ticketInfo = {
                     ...formData,
                     fecha: new Date().toLocaleString('es-CO'),
                     numero: currentTicket,
                     timestamp: new Date().getTime(),
-                    estado: 'reservado'
+                    estado: 'reservado',
+                    ticketNumber: ticketNumber,
+                    comprobanteCargado: false
                 };
 
                 // Actualizar estado local
@@ -285,16 +343,21 @@
                 setReservedNumbers(newReserved);
                 setSelectedNumbers(newSelected);
                 setPendingNumbers(newPending);
+                setTicketCounter(newTicketCounter);
                 setShowForm(false);
                 setShowPaymentInfo(false);
 
                 // Guardar en localStorage
                 localStorage.setItem('rifaTicketData', JSON.stringify(newTicketData));
                 localStorage.setItem('rifaReservedNumbers', JSON.stringify([...newReserved]));
+                localStorage.setItem('rifaTicketCounter', newTicketCounter.toString());
 
                 // Guardar en Firebase
                 try {
                     await db.collection('rifa').doc('tickets').set(newTicketData);
+                    await db.collection('rifa').doc('metadata').set({
+                        ticketCounter: newTicketCounter
+                    }, { merge: true });
                     
                     const reservedObj = {};
                     newReserved.forEach(num => { reservedObj[num] = true; });
@@ -315,6 +378,7 @@
 
                 sendToFranklinWhatsApp(currentTicket, formData, 'reservado');
                 showClientTicket(currentTicket, formData, 'reservado');
+                generatePDFReport();
             };
 
             const procesarMetodoPago = (num, userData, estado) => {
@@ -327,12 +391,17 @@
                         break;
                     case 'efectivo':
                         alert('✅ Has seleccionado pago en efectivo. Coordinaremos la entrega contigo.');
+                        sendConfirmationWhatsApp(num, userData, estado);
                         break;
                     case 'transferencia':
                         alert('📲 Has seleccionado transferencia. Te enviaremos los datos bancarios.');
+                        sendConfirmationWhatsApp(num, userData, estado);
                         break;
                 }
-                sendToFranklinWhatsApp(num, userData, estado);
+                
+                if (estado === 'pagado') {
+                    sendToFranklinWhatsApp(num, userData, estado);
+                }
                 showClientTicket(num, userData, estado);
             };
 
@@ -340,14 +409,42 @@
                 const nequiUrl = `nequi://pago?telefono=3197118858&monto=25000`;
                 const fallbackUrl = `https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi`;
                 window.location.href = nequiUrl;
-                setTimeout(() => window.open(fallbackUrl, '_blank'), 1000);
+                setTimeout(() => {
+                    if (!document.hidden) {
+                        window.open(fallbackUrl, '_blank');
+                    }
+                }, 1000);
             };
 
             const abrirBancolombia = () => {
                 const bancolombiaUrl = `bancolombia://transferencia?cuenta=31172084632&monto=25000`;
                 const fallbackUrl = `https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Bancolombia`;
                 window.location.href = bancolombiaUrl;
-                setTimeout(() => window.open(fallbackUrl, '_blank'), 1000);
+                setTimeout(() => {
+                    if (!document.hidden) {
+                        window.open(fallbackUrl, '_blank');
+                    }
+                }, 1000);
+            };
+
+            const sendConfirmationWhatsApp = (num, userData, estado) => {
+                const nombreCompleto = userData.nombre + (userData.apellido ? ' ' + userData.apellido : '');
+                const message = `🎟️ *CONFIRMACIÓN DE ${estado.toUpperCase()} - RIFA $1.000.000* 🎟️\n\n` +
+                    `👤 *Titular:* ${nombreCompleto}\n` +
+                    `📱 *Teléfono:* ${userData.telefono}\n` +
+                    `🎯 *Número Asignado:* ${num.toString().padStart(3, '0')}\n` +
+                    `💰 *Premio:* $1.000.000 COP\n` +
+                    `💵 *Valor:* $25.000 COP\n` +
+                    `📋 *Estado:* ${estado === 'pagado' ? '✅ PAGADO' : '📅 RESERVADO'}\n` +
+                    `🎲 *Sorteo:* Chance Pick 3 Noche\n` +
+                    `📅 *Fecha:* 31 de Octubre\n\n` +
+                    `${estado === 'reservado' ? '⚠️ *RECORDATORIO:* Debes pagar antes de la fecha del sorteo. Número que no se paga no juega.\n\n' : ''}` +
+                    `🏆 *Organiza:* Franklin Monsalve\n` +
+                    `📞 *Contacto:* +57 3197118858\n\n` +
+                    `✅ *REGISTRO CONFIRMADO*\n` +
+                    `¡Mucha suerte! 🍀`;
+
+                window.open(`https://wa.me/57${userData.telefono}?text=${encodeURIComponent(message)}`, '_blank');
             };
 
             const cancelForm = () => {
@@ -404,14 +501,83 @@
                     `💰 *Premio:* $1.000.000 COP\n` +
                     `💵 *Valor:* ${pagoText}\n` +
                     `📋 *Estado:* ${estadoText}\n` +
-                    `🎲 *Sorteo:* Chance Pick 3 Día\n` +
-                    `📅 *Fecha:* 16 de Octubre\n\n` +
+                    `🎲 *Sorteo:* Chance Pick 3 Noche\n` +
+                    `📅 *Fecha:* 31 de Octubre\n\n` +
                     `${estadoTicket === 'reservado' ? '⚠️ *RECORDATORIO:* Debes pagar antes de la fecha del sorteo. Número que no se paga no juega.\n\n' : ''}` +
                     `🏆 *Organiza:* Franklin Monsalve\n` +
                     `📞 *Contacto:* +57 3197118858\n\n` +
                     `✅ *BOLETA REGISTRADA OFICIALMENTE*\n` +
                     `¡Mucha suerte! 🍀`;
                 window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+            };
+
+            const generatePDFReport = () => {
+                const doc = new jsPDF();
+                
+                // Título
+                doc.setFontSize(20);
+                doc.setTextColor(40, 40, 40);
+                doc.text('REPORTE DE RIFA - $1.000.000', 105, 15, { align: 'center' });
+                
+                // Información del sorteo
+                doc.setFontSize(12);
+                doc.setTextColor(100, 100, 100);
+                doc.text(`Fecha de generación: ${new Date().toLocaleString('es-CO')}`, 105, 25, { align: 'center' });
+                doc.text('Sorteo: Chance Pick 3 Noche - 31 de Octubre', 105, 30, { align: 'center' });
+                
+                // Tabla de tickets
+                const tableData = [];
+                Object.keys(ticketData).forEach(num => {
+                    const ticket = ticketData[num];
+                    tableData.push([
+                        ticket.ticketNumber || 'N/A',
+                        `${ticket.nombre} ${ticket.apellido || ''}`,
+                        num.toString().padStart(3, '0'),
+                        ticket.telefono,
+                        ticket.email || 'No proporcionado',
+                        ticket.estado === 'pagado' ? '✅ PAGADO' : '📅 RESERVADO',
+                        ticket.metodoPago
+                    ]);
+                });
+                
+                // Ordenar por número de ticket
+                tableData.sort((a, b) => a[0].localeCompare(b[0]));
+                
+                doc.autoTable({
+                    startY: 40,
+                    head: [['Ticket', 'Cliente', 'Número', 'Teléfono', 'Email', 'Estado', 'Método Pago']],
+                    body: tableData,
+                    theme: 'grid',
+                    headStyles: {
+                        fillColor: [79, 70, 229],
+                        textColor: 255,
+                        fontStyle: 'bold'
+                    },
+                    styles: {
+                        fontSize: 8,
+                        cellPadding: 2
+                    },
+                    margin: { top: 40 }
+                });
+                
+                // Estadísticas
+                const finalY = doc.lastAutoTable.finalY + 10;
+                doc.setFontSize(10);
+                doc.setTextColor(40, 40, 40);
+                doc.text(`Total vendidos: ${soldNumbers.size}`, 14, finalY);
+                doc.text(`Total reservados: ${reservedNumbers.size}`, 14, finalY + 5);
+                doc.text(`Disponibles: ${100 - (soldNumbers.size + reservedNumbers.size)}`, 14, finalY + 10);
+                
+                // Guardar PDF
+                doc.save(`reporte_rifa_${new Date().toISOString().split('T')[0]}.pdf`);
+            };
+
+            const generateConsolidatedReport = () => {
+                if (!isAdmin) {
+                    alert('❌ Solo el administrador puede generar reportes consolidados');
+                    return;
+                }
+                generatePDFReport();
             };
 
             const openAdminPanel = () => {
@@ -442,6 +608,7 @@
                     localStorage.removeItem('rifaSoldNumbers');
                     localStorage.removeItem('rifaTicketData');
                     localStorage.removeItem('rifaReservedNumbers');
+                    localStorage.removeItem('rifaTicketCounter');
                     setSoldNumbers(new Set());
                     setTicketData({});
                     setSelectedNumbers(new Set());
@@ -449,12 +616,16 @@
                     setReservedNumbers(new Set());
                     setDrawExecuted(false);
                     setWinnerNumber(null);
+                    setTicketCounter(1);
                     
                     try {
                         await db.collection('rifa').doc('numbers').set({});
                         await db.collection('rifa').doc('tickets').set({});
                         await db.collection('rifa').doc('reserved').set({});
                         await db.collection('rifa').doc('draw').set({});
+                        await db.collection('rifa').doc('metadata').set({
+                            ticketCounter: 1
+                        });
                     } catch (error) {
                         console.log('⚠️ No se pudo limpiar Firebase');
                     }
@@ -494,6 +665,7 @@
                     }
                     
                     alert(`🎉 ¡SORTEO REALIZADO! El número ganador es: ${winner.toString().padStart(3, '0')}`);
+                    generatePDFReport(); // Generar reporte final
                 }
             };
 
@@ -584,6 +756,9 @@
                                             <div className="space-y-2">
                                                 <button onClick={openDrawPanel} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
                                                     🎰 Realizar Sorteo
+                                                </button>
+                                                <button onClick={generateConsolidatedReport} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
+                                                    📊 Generar Reporte PDF
                                                 </button>
                                                 <button onClick={clearAllData} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
                                                     🗑️ Limpiar Todos los Datos
@@ -828,12 +1003,45 @@
                                             </label>
                                         </div>
                                     </div>
+
+                                    {/* Campo de comprobante - solo mostrar para métodos que no sean efectivo */}
+                                    {formData.metodoPago !== 'efectivo' && (
+                                        <div>
+                                            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">📎 Comprobante de Pago *</label>
+                                            <input 
+                                                type="file" 
+                                                id="comprobante" 
+                                                accept="image/*,.pdf,.doc,.docx" 
+                                                onChange={handleFileChange}
+                                                className="file-input" 
+                                                required 
+                                            />
+                                            <label htmlFor="comprobante" className="file-label block w-full bg-purple-50 border-2 border-dashed border-purple-300 rounded-lg p-4 text-center cursor-pointer hover:bg-purple-100 transition-all">
+                                                <div className="text-purple-500 text-xl mb-2">📎</div>
+                                                <p className="text-purple-700 font-medium text-sm">
+                                                    {formData.comprobante ? formData.comprobante.name : 'Clic para subir comprobante'}
+                                                </p>
+                                                <p className="text-purple-500 text-xs mt-1">Imagen o PDF del comprobante</p>
+                                            </label>
+                                            <p className="text-gray-500 text-xs mt-1">
+                                                ⚠️ El número se marcará como PAGADO automáticamente al cargar el comprobante
+                                            </p>
+                                        </div>
+                                    )}
                                     
                                     <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4">
-                                        <button type="submit" className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">
-                                            💳 Pagar Ahora
+                                        <button 
+                                            type="submit" 
+                                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                            disabled={formData.metodoPago !== 'efectivo' && !formData.comprobante}
+                                        >
+                                            💳 {formData.metodoPago !== 'efectivo' && formData.comprobante ? 'Pagar y Confirmar' : 'Pagar Ahora'}
                                         </button>
-                                        <button type="button" onClick={reserveNumber} className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">
+                                        <button 
+                                            type="button" 
+                                            onClick={reserveNumber} 
+                                            className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                        >
                                             📅 Reservar
                                         </button>
                                         <button type="button" onClick={cancelForm} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">
@@ -958,6 +1166,9 @@
                                             <p className="text-base sm:text-lg font-semibold">📋 Estado: {
                                                 ticketData[currentTicket].estado === 'pagado' ? '✅ PAGADO' : '📅 RESERVADO'
                                             }</p>
+                                            <p className="text-base sm:text-lg font-semibold">🎫 Ticket: {
+                                                ticketData[currentTicket].ticketNumber || 'N/A'
+                                            }</p>
                                             <hr className="my-2 sm:my-3 border-gray-300" />
                                         </div>
                                     )}
@@ -965,8 +1176,8 @@
                                     <div className="text-left space-y-2 text-gray-800">
                                         <p className="text-lg sm:text-2xl font-bold text-green-600">Premio: $1.000.000</p>
                                         <p className="text-base sm:text-lg">Valor: $25.000 COP</p>
-                                        <p className="text-base sm:text-lg">Sorteo: Chance Pick 3</p>
-                                        <p className="text-base sm:text-lg font-bold">Fecha: 16 Octubre</p>
+                                        <p className="text-base sm:text-lg">Sorteo: Chance Pick 3 Noche</p>
+                                        <p className="text-base sm:text-lg font-bold">Fecha: 31 Octubre</p>
                                         <hr className="my-2 sm:my-3 border-gray-300" />
                                         
                                         {ticketData[currentTicket]?.estado === 'reservado' && (
@@ -1007,4 +1218,3 @@
     </script>
 </body>
 </html>
-
