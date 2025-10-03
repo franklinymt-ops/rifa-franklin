@@ -131,6 +131,12 @@
             const [drawExecuted, setDrawExecuted] = useState(false);
             const [ticketCounter, setTicketCounter] = useState(1);
             const [isUploading, setIsUploading] = useState(false);
+            const [showUpdatePaymentModal, setShowUpdatePaymentModal] = useState(false);
+            const [selectedReservedNumber, setSelectedReservedNumber] = useState(null);
+            const [updatePaymentData, setUpdatePaymentData] = useState({
+                comprobante: null,
+                metodoPago: 'nequi'
+            });
 
             const ADMIN_PASSWORD = "Franklin2024";
             const db = firebase.firestore();
@@ -198,6 +204,96 @@
                     });
             };
 
+            // NUEVA FUNCIÓN: Abrir modal para actualizar pago de reserva
+            const openUpdatePaymentModal = (num) => {
+                setSelectedReservedNumber(num);
+                setUpdatePaymentData({
+                    comprobante: null,
+                    metodoPago: 'nequi'
+                });
+                setShowUpdatePaymentModal(true);
+            };
+
+            // NUEVA FUNCIÓN: Actualizar reserva a pagado
+            const updateReservationToPaid = async (e) => {
+                e.preventDefault();
+                
+                if (!updatePaymentData.comprobante) {
+                    alert('❌ Por favor carga el comprobante de pago');
+                    return;
+                }
+
+                setIsUploading(true);
+                const ticketInfo = ticketData[selectedReservedNumber];
+
+                try {
+                    // Subir comprobante
+                    const filePath = `comprobantes/${ticketInfo.ticketNumber}-UPDATE-${updatePaymentData.comprobante.name}`;
+                    const storageRef = storage.ref(filePath);
+                    await storageRef.put(updatePaymentData.comprobante);
+                    const comprobanteURL = await storageRef.getDownloadURL();
+
+                    // Actualizar información del ticket
+                    const updatedTicketInfo = {
+                        ...ticketInfo,
+                        estado: 'pagado',
+                        metodoPago: updatePaymentData.metodoPago,
+                        comprobanteURL,
+                        fechaPago: new Date().toLocaleString('es-CO'),
+                        timestampPago: new Date().getTime()
+                    };
+
+                    // Actualizar estado local
+                    const newTicketData = { ...ticketData, [selectedReservedNumber]: updatedTicketInfo };
+                    const newSold = new Set([...soldNumbers, selectedReservedNumber]);
+                    const newReserved = new Set(reservedNumbers);
+                    newReserved.delete(selectedReservedNumber);
+
+                    setTicketData(newTicketData);
+                    setSoldNumbers(newSold);
+                    setReservedNumbers(newReserved);
+                    setShowUpdatePaymentModal(false);
+
+                    // Guardar en localStorage
+                    localStorage.setItem('rifaSoldNumbers', JSON.stringify([...newSold]));
+                    localStorage.setItem('rifaTicketData', JSON.stringify(newTicketData));
+
+                    // Guardar en Firebase
+                    await db.collection('rifa').doc('numbers').set({ [selectedReservedNumber]: true }, { merge: true });
+                    await db.collection('rifa').doc('tickets').set({ [selectedReservedNumber]: updatedTicketInfo }, { merge: true });
+                    await db.collection('rifa').doc('reserved').update({ [selectedReservedNumber]: firebase.firestore.FieldValue.delete() });
+
+                    // Notificación de actualización
+                    setLastSale({
+                        numero: selectedReservedNumber,
+                        cliente: ticketInfo.nombre + (ticketInfo.apellido ? ' ' + ticketInfo.apellido : ''),
+                        telefono: ticketInfo.telefono,
+                        metodoPago: updatePaymentData.metodoPago,
+                        timestamp: new Date().getTime(),
+                        tipo: 'actualización'
+                    });
+
+                    // Enviar confirmación al cliente
+                    const confirmationMessage = `🎟️ *ACTUALIZACIÓN DE PAGO - RIFA $1.000.000* 🎟️\n\n` +
+                        `¡Hola ${ticketInfo.nombre}! Tu pago ha sido confirmado.\n\n` +
+                        `👤 *Titular:* ${ticketInfo.nombre} ${ticketInfo.apellido || ''}\n` +
+                        `🎯 *Tu Número:* ${selectedReservedNumber.toString().padStart(3, '0')}\n` +
+                        `🎫 *Ticket No:* ${ticketInfo.ticketNumber}\n` +
+                        `📋 *Estado:* ✅ PAGADO\n\n` +
+                        `¡Mucha suerte! 🍀`;
+
+                    window.open(`https://wa.me/57${ticketInfo.telefono}?text=${encodeURIComponent(confirmationMessage)}`, '_blank');
+
+                    alert('✅ Pago confirmado exitosamente. El número ha sido actualizado a PAGADO.');
+
+                } catch (error) {
+                    console.error('Error actualizando el pago:', error);
+                    alert('❌ Error al procesar el pago. Inténtalo de nuevo.');
+                } finally {
+                    setIsUploading(false);
+                }
+            };
+
             const toggleNumber = (num) => {
                 if (soldNumbers.has(num) || reservedNumbers.has(num)) {
                     alert(`❌ El número ${num.toString().padStart(3, '0')} ya está ocupado`);
@@ -248,41 +344,46 @@
                 });
             };
 
+            const handleUpdatePaymentFileChange = (e) => {
+                setUpdatePaymentData({
+                    ...updatePaymentData,
+                    comprobante: e.target.files[0]
+                });
+            };
+
+            const handleUpdatePaymentChange = (e) => {
+                setUpdatePaymentData({
+                    ...updatePaymentData,
+                    [e.target.name]: e.target.value
+                });
+            };
+
             const abrirNequi = () => {
                 const appUrl = "nequi://pago?telefono=3197118858&monto=25000";
                 const fallbackUrl = "https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi";
                 
-                // Intento abrir la app
                 window.location.href = appUrl;
-
-                // Si no abre en 500ms, manda a WhatsApp
                 setTimeout(() => {
                     window.open(fallbackUrl, '_blank');
                 }, 500);
             };
 
             const abrirBancolombia = () => {
-                // Deep link específico para Bancolombia Personas
                 const appUrl = "bancolombiaper://";
                 const fallbackUrl = "https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Bancolombia";
                 
-                // Detectar si es Android o iOS
                 const isAndroid = /Android/i.test(navigator.userAgent);
                 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
                 
                 if (isAndroid) {
-                    // Intent para Android
                     window.location.href = "intent://sucursalpersonas#Intent;scheme=bancolombia;package=com.todo1.mobile;end";
                 } else if (isIOS) {
-                    // URL scheme para iOS
                     window.location.href = "bancolombiaper://";
                 } else {
-                    // Escritorio - abrir WhatsApp directamente
                     window.open(fallbackUrl, '_blank');
                     return;
                 }
 
-                // Si no abre en 1 segundo, ir a WhatsApp
                 setTimeout(() => {
                     window.open(fallbackUrl, '_blank');
                 }, 1000);
@@ -319,7 +420,6 @@
                     return;
                 }
 
-                // Validar comprobante para métodos de pago digital
                 if (formData.metodoPago !== 'efectivo' && !formData.comprobante) {
                     alert('❌ Por favor carga el comprobante de pago para continuar');
                     return;
@@ -330,7 +430,6 @@
                 let comprobanteURL = '';
 
                 try {
-                    // Subir comprobante si existe
                     if (formData.comprobante) {
                         const filePath = `comprobantes/${ticketNumber}-${formData.comprobante.name}`;
                         const storageRef = storage.ref(filePath);
@@ -348,12 +447,10 @@
                         timestamp: new Date().getTime()
                     };
 
-                    // Actualizar estado local para todos los números seleccionados
                     const newTicketData = { ...ticketData };
                     const newSold = new Set([...soldNumbers, ...selectedNumbers]);
                     const newReserved = new Set(reservedNumbers);
                     
-                    // Guardar información para cada número
                     selectedNumbers.forEach(num => {
                         newTicketData[num] = ticketInfo;
                         newReserved.delete(num);
@@ -366,18 +463,15 @@
                     setPendingNumbers(new Set());
                     setShowForm(false);
 
-                    // Guardar en localStorage
                     localStorage.setItem('rifaSoldNumbers', JSON.stringify([...newSold]));
                     localStorage.setItem('rifaTicketData', JSON.stringify(newTicketData));
 
-                    // Guardar en Firebase
                     const numbersObj = {};
                     newSold.forEach(num => { numbersObj[num] = true; });
                     
                     await db.collection('rifa').doc('numbers').set(numbersObj);
                     await db.collection('rifa').doc('tickets').set(newTicketData);
                     
-                    // Eliminar números reservados si existen
                     const reservedUpdate = {};
                     selectedNumbers.forEach(num => {
                         reservedUpdate[num] = firebase.firestore.FieldValue.delete();
@@ -388,7 +482,6 @@
 
                     setTicketCounter(ticketCounter + 1);
 
-                    // Notificación y procesar pago
                     setLastSale({
                         numeros: Array.from(selectedNumbers),
                         cliente: formData.nombre + (formData.apellido ? ' ' + formData.apellido : ''),
@@ -397,14 +490,11 @@
                         timestamp: new Date().getTime()
                     });
 
-                    // Generar y enviar ticket por WhatsApp automáticamente
                     const ticketMessage = generarTicketWhatsApp(selectedNumbers, ticketInfo, 'pagado');
                     window.open(`https://wa.me/57${formData.telefono}?text=${encodeURIComponent(ticketMessage)}`, '_blank');
 
-                    // También enviar notificación a Franklin
                     sendToFranklinWhatsApp(selectedNumbers, ticketInfo, 'pagado');
 
-                    // Mostrar confirmación al usuario
                     setCurrentTicket(Array.from(selectedNumbers)[0]);
                     setShowTicket(true);
 
@@ -433,11 +523,9 @@
                     timestamp: new Date().getTime()
                 };
 
-                // Actualizar estado local
                 const newTicketData = { ...ticketData };
                 const newReserved = new Set([...reservedNumbers, ...selectedNumbers]);
 
-                // Guardar información para cada número
                 selectedNumbers.forEach(num => {
                     newTicketData[num] = ticketInfo;
                 });
@@ -448,7 +536,6 @@
                 setPendingNumbers(new Set());
                 setShowForm(false);
 
-                // Guardar en Firebase
                 const reservedObj = {};
                 selectedNumbers.forEach(num => { reservedObj[num] = true; });
                 
@@ -600,19 +687,15 @@
 
                 const doc = new jsPDF();
                 
-                // Título
                 doc.setFontSize(20);
                 doc.text('REPORTE DE RIFA - $1.000.000', 105, 15, { align: 'center' });
                 
-                // Fecha de generación
                 doc.setFontSize(10);
                 doc.text(`Fecha de generación: ${new Date().toLocaleString('es-CO')}`, 105, 22, { align: 'center' });
                 doc.text('Sorteo: Chance Pick 3 Noche - 31 de Octubre', 105, 28, { align: 'center' });
                 
-                // Preparar datos para la tabla
                 const tableData = [];
                 
-                // Obtener todos los tickets únicos
                 const uniqueTickets = {};
                 Object.entries(ticketData).forEach(([numero, data]) => {
                     if (data.ticketNumber && !uniqueTickets[data.ticketNumber]) {
@@ -625,7 +708,6 @@
                     }
                 });
 
-                // Agregar filas a la tabla
                 Object.values(uniqueTickets).sort((a, b) => a.ticketNumber.localeCompare(b.ticketNumber)).forEach(ticket => {
                     const numerosTexto = ticket.numeros.map(num => num.toString().padStart(3, '0')).join(', ');
                     tableData.push([
@@ -639,7 +721,6 @@
                     ]);
                 });
                 
-                // Crear tabla
                 doc.autoTable({
                     startY: 35,
                     head: [['Ticket', 'Cliente', 'Números', 'Teléfono', 'Email', 'Estado', 'Método Pago']],
@@ -665,7 +746,6 @@
                     }
                 });
                 
-                // Estadísticas al final
                 const finalY = doc.lastAutoTable.finalY + 10;
                 doc.setFontSize(12);
                 doc.setFont(undefined, 'bold');
@@ -673,7 +753,6 @@
                 doc.text(`**Total reservados: ${reservedNumbers.size}**`, 14, finalY + 6);
                 doc.text(`**Disponibles: ${100 - soldNumbers.size - reservedNumbers.size}**`, 14, finalY + 12);
                 
-                // Guardar PDF
                 doc.save(`reporte_rifa_${new Date().toISOString().split('T')[0]}.pdf`);
             };
 
@@ -697,7 +776,6 @@
                 }
 
                 if (confirm('¿Estás seguro de realizar el sorteo? ¡Esta acción no se puede deshacer!')) {
-                    // Simular animación de sorteo
                     let counter = 0;
                     const interval = setInterval(() => {
                         const randomNum = Math.floor(Math.random() * 100);
@@ -706,13 +784,11 @@
                         
                         if (counter > 20) {
                             clearInterval(interval);
-                            // Seleccionar un ganador real entre los números vendidos
                             const soldArray = Array.from(soldNumbers);
                             const winner = soldArray[Math.floor(Math.random() * soldArray.length)];
                             setWinnerNumber(winner);
                             setDrawExecuted(true);
                             
-                            // Guardar en Firebase
                             db.collection('rifa').doc('draw').set({ winner });
                             
                             alert(`🎉 ¡SORTEO REALIZADO! El número ganador es: ${winner.toString().padStart(3, '0')}`);
@@ -746,7 +822,8 @@
                         <div className="max-w-6xl mx-auto mb-4">
                             <div className="bg-green-500/20 backdrop-blur-lg rounded-xl p-3 border border-green-400/30 animate-pulse">
                                 <p className="text-white font-bold text-center text-sm sm:text-base">
-                                    🎉 ¡NUEVA VENTA! Números {lastSale.numeros.map(num => num.toString().padStart(3, '0')).join(', ')} - {lastSale.cliente}
+                                    {lastSale.tipo === 'actualización' ? '🔄 ACTUALIZACIÓN: ' : '🎉 ¡NUEVA VENTA! '}
+                                    Número {lastSale.numero?.toString().padStart(3, '0')} - {lastSale.cliente}
                                 </p>
                             </div>
                         </div>
@@ -831,12 +908,28 @@
                                 </p>
                                 <div className="flex flex-wrap gap-1 sm:gap-2 max-h-20 overflow-y-auto">
                                     {Array.from(reservedNumbers).sort((a, b) => a - b).map(num => (
-                                        <span key={num} className="bg-yellow-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold">
-                                            {num.toString().padStart(3, '0')}
-                                            {ticketData[num] && ' 👤'}
-                                        </span>
+                                        <div key={num} className="relative">
+                                            <span className="bg-yellow-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold">
+                                                {num.toString().padStart(3, '0')}
+                                                {ticketData[num] && ' 👤'}
+                                            </span>
+                                            {isAdmin && (
+                                                <button
+                                                    onClick={() => openUpdatePaymentModal(num)}
+                                                    className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-green-600"
+                                                    title="Actualizar a Pagado"
+                                                >
+                                                    💳
+                                                </button>
+                                            )}
+                                        </div>
                                     ))}
                                 </div>
+                                {isAdmin && reservedNumbers.size > 0 && (
+                                    <p className="text-white/70 text-xs mt-2">
+                                        💡 Haz clic en el icono 💳 para actualizar reservas a pagado
+                                    </p>
+                                )}
                             </div>
                         )}
                         
@@ -949,6 +1042,7 @@
                                 </div>
                                 
                                 <form className="space-y-3 sm:space-y-4">
+                                    {/* ... (formulario existente se mantiene igual) ... */}
                                     <div>
                                         <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Nombre *</label>
                                         <input type="text" name="nombre" value={formData.nombre} onChange={handleFormChange} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base" placeholder="Ingresa tu nombre" required />
@@ -1062,6 +1156,89 @@
                                             type="button" 
                                             onClick={cancelForm}
                                             className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                        >
+                                            ✕ Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* NUEVO MODAL: Actualizar pago de reserva */}
+                    {showUpdatePaymentModal && selectedReservedNumber !== null && (
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
+                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
+                                <div className="text-center mb-4 sm:mb-6">
+                                    <div className="text-3xl sm:text-4xl mb-2">💳</div>
+                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Actualizar a Pagado</h2>
+                                    <p className="text-gray-600 text-sm sm:text-base">
+                                        Número: <span className="font-bold text-xl text-purple-600">
+                                            {selectedReservedNumber.toString().padStart(3, '0')}
+                                        </span>
+                                    </p>
+                                    {ticketData[selectedReservedNumber] && (
+                                        <div className="mt-2 text-sm text-gray-600">
+                                            <p><strong>Cliente:</strong> {ticketData[selectedReservedNumber].nombre} {ticketData[selectedReservedNumber].apellido}</p>
+                                            <p><strong>Teléfono:</strong> {ticketData[selectedReservedNumber].telefono}</p>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <form className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">💰 Método de Pago *</label>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <input type="radio" name="metodoPago" value="nequi" checked={updatePaymentData.metodoPago === 'nequi'} onChange={handleUpdatePaymentChange} className="text-purple-600 focus:ring-purple-500" />
+                                                <span className="flex items-center space-x-2">
+                                                    <span className="text-xl">📱</span>
+                                                    <span className="text-sm font-medium">Nequi</span>
+                                                </span>
+                                            </label>
+                                            
+                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <input type="radio" name="metodoPago" value="bancolombia" checked={updatePaymentData.metodoPago === 'bancolombia'} onChange={handleUpdatePaymentChange} className="text-purple-600 focus:ring-purple-500" />
+                                                <span className="flex items-center space-x-2">
+                                                    <span className="text-xl">🏦</span>
+                                                    <span className="text-sm font-medium">Bancolombia</span>
+                                                </span>
+                                            </label>
+                                            
+                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <input type="radio" name="metodoPago" value="efectivo" checked={updatePaymentData.metodoPago === 'efectivo'} onChange={handleUpdatePaymentChange} className="text-purple-600 focus:ring-purple-500" />
+                                                <span className="flex items-center space-x-2">
+                                                    <span className="text-xl">💵</span>
+                                                    <span className="text-sm font-medium">Efectivo</span>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">📎 Comprobante de Pago *</label>
+                                        <input type="file" accept="image/*,.pdf" onChange={handleUpdatePaymentFileChange} className="file-input" required />
+                                        <label className="file-label block w-full bg-purple-50 border-2 border-dashed border-purple-300 rounded-lg p-4 text-center hover:bg-purple-100 cursor-pointer">
+                                            <p className="text-purple-700 font-medium text-sm">
+                                                {updatePaymentData.comprobante ? updatePaymentData.comprobante.name : 'Clic para subir comprobante'}
+                                            </p>
+                                            <p className="text-purple-500 text-xs mt-1">Sube el comprobante de pago</p>
+                                        </label>
+                                    </div>
+                                    
+                                    <div className="flex gap-3 pt-4">
+                                        <button 
+                                            type="button" 
+                                            onClick={updateReservationToPaid}
+                                            disabled={!updatePaymentData.comprobante || isUploading}
+                                            className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {isUploading ? '⏳ Actualizando...' : '✅ Confirmar Pago'}
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setShowUpdatePaymentModal(false)}
+                                            className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
                                         >
                                             ✕ Cancelar
                                         </button>
