@@ -54,7 +54,6 @@
         function TalonarioRifa() {
             const [selectedNumbers, setSelectedNumbers] = useState(new Set());
             const [soldNumbers, setSoldNumbers] = useState(new Set());
-            const [reservedNumbers, setReservedNumbers] = useState(new Set());
             const [showTicket, setShowTicket] = useState(false);
             const [currentTicket, setCurrentTicket] = useState(null);
             const [showForm, setShowForm] = useState(false);
@@ -63,8 +62,7 @@
                 apellido: '',
                 telefono: '',
                 email: '',
-                metodoPago: 'nequi',
-                tipoVenta: 'pagado'
+                metodoPago: 'nequi'
             });
             const [ticketData, setTicketData] = useState({});
             const [pendingNumbers, setPendingNumbers] = useState(new Set());
@@ -73,12 +71,8 @@
             const [isAdmin, setIsAdmin] = useState(false);
             const [lastSale, setLastSale] = useState(null);
             const [syncStatus, setSyncStatus] = useState('🟡 Conectando...');
-            const [showSorteoPanel, setShowSorteoPanel] = useState(false);
-            const [numeroGanador, setNumeroGanador] = useState(null);
-            const [showGanador, setShowGanador] = useState(false);
 
             const ADMIN_PASSWORD = "Franklin2024";
-            const SORTEO_DATE = new Date('2025-10-16');
             const db = firebase.firestore();
 
             // Cargar datos iniciales y configurar Firebase
@@ -89,12 +83,10 @@
 
             const loadLocalData = () => {
                 const savedSoldNumbers = localStorage.getItem('rifaSoldNumbers');
-                const savedReservedNumbers = localStorage.getItem('rifaReservedNumbers');
                 const savedTicketData = localStorage.getItem('rifaTicketData');
                 const savedAdmin = localStorage.getItem('rifaAdmin');
                 
                 if (savedSoldNumbers) setSoldNumbers(new Set(JSON.parse(savedSoldNumbers)));
-                if (savedReservedNumbers) setReservedNumbers(new Set(JSON.parse(savedReservedNumbers)));
                 if (savedTicketData) setTicketData(JSON.parse(savedTicketData));
                 if (savedAdmin) setIsAdmin(JSON.parse(savedAdmin));
             };
@@ -111,14 +103,6 @@
                         setSyncStatus('🔴 Error: ' + error.message);
                     });
 
-                // Escuchar números reservados
-                db.collection('rifa').doc('reserved')
-                    .onSnapshot((doc) => {
-                        const data = doc.data() || {};
-                        const reservedSet = new Set(Object.keys(data).map(Number));
-                        setReservedNumbers(reservedSet);
-                    });
-
                 // Escuchar tickets
                 db.collection('rifa').doc('tickets')
                     .onSnapshot((doc) => {
@@ -128,11 +112,12 @@
             };
 
             const toggleNumber = (num) => {
-                if (soldNumbers.has(num) || reservedNumbers.has(num)) {
-                    alert(`❌ El número ${num.toString().padStart(3, '0')} ya está vendido o reservado`);
+                if (soldNumbers.has(num) || pendingNumbers.has(num)) {
+                    if (soldNumbers.has(num)) {
+                        alert(`❌ El número ${num.toString().padStart(3, '0')} ya está vendido`);
+                    }
                     return;
                 }
-                if (pendingNumbers.has(num)) return;
                 
                 const newSelected = new Set(selectedNumbers);
                 if (newSelected.has(num)) {
@@ -156,8 +141,7 @@
                     apellido: '',
                     telefono: '',
                     email: '',
-                    metodoPago: 'nequi',
-                    tipoVenta: 'pagado'
+                    metodoPago: 'nequi'
                 });
             };
 
@@ -179,52 +163,33 @@
                     ...formData,
                     fecha: new Date().toLocaleString('es-CO'),
                     numero: currentTicket,
-                    timestamp: new Date().getTime(),
-                    estado: formData.tipoVenta === 'pagado' ? 'Pagado' : 'Reservado'
+                    timestamp: new Date().getTime()
                 };
 
                 // Actualizar estado local
                 const newTicketData = { ...ticketData, [currentTicket]: ticketInfo };
-                
-                if (formData.tipoVenta === 'pagado') {
-                    const newSold = new Set([...soldNumbers, currentTicket]);
-                    setSoldNumbers(newSold);
-                    localStorage.setItem('rifaSoldNumbers', JSON.stringify([...newSold]));
-                } else {
-                    const newReserved = new Set([...reservedNumbers, currentTicket]);
-                    setReservedNumbers(newReserved);
-                    localStorage.setItem('rifaReservedNumbers', JSON.stringify([...newReserved]));
-                }
-
+                const newSold = new Set([...soldNumbers, currentTicket]);
                 const newSelected = new Set(selectedNumbers);
                 newSelected.delete(currentTicket);
                 const newPending = new Set(pendingNumbers);
                 newPending.delete(currentTicket);
 
                 setTicketData(newTicketData);
+                setSoldNumbers(newSold);
                 setSelectedNumbers(newSelected);
                 setPendingNumbers(newPending);
                 setShowForm(false);
 
                 // Guardar en localStorage
+                localStorage.setItem('rifaSoldNumbers', JSON.stringify([...newSold]));
                 localStorage.setItem('rifaTicketData', JSON.stringify(newTicketData));
 
                 // Guardar en Firebase
                 try {
                     const numbersObj = {};
-                    soldNumbers.forEach(num => { numbersObj[num] = true; });
-                    if (formData.tipoVenta === 'pagado') {
-                        numbersObj[currentTicket] = true;
-                    }
-                    
-                    const reservedObj = {};
-                    reservedNumbers.forEach(num => { reservedObj[num] = true; });
-                    if (formData.tipoVenta === 'reservado') {
-                        reservedObj[currentTicket] = true;
-                    }
+                    newSold.forEach(num => { numbersObj[num] = true; });
                     
                     await db.collection('rifa').doc('numbers').set(numbersObj);
-                    await db.collection('rifa').doc('reserved').set(reservedObj);
                     await db.collection('rifa').doc('tickets').set(newTicketData);
                 } catch (error) {
                     console.error('Error guardando en Firebase:', error);
@@ -236,16 +201,10 @@
                     cliente: formData.nombre + (formData.apellido ? ' ' + formData.apellido : ''),
                     telefono: formData.telefono,
                     metodoPago: formData.metodoPago,
-                    tipoVenta: formData.tipoVenta,
                     timestamp: new Date().getTime()
                 });
 
-                if (formData.tipoVenta === 'pagado') {
-                    procesarMetodoPago(currentTicket, formData);
-                } else {
-                    showClientTicket(currentTicket, formData);
-                    sendToFranklinWhatsApp(currentTicket, formData);
-                }
+                procesarMetodoPago(currentTicket, formData);
             };
 
             const procesarMetodoPago = (num, userData) => {
@@ -254,7 +213,7 @@
                         abrirNequi();
                         break;
                     case 'bancolombia':
-                        mostrarInfoBancolombia();
+                        abrirBancolombia();
                         break;
                     case 'efectivo':
                         alert('✅ Has seleccionado pago en efectivo. Coordinaremos la entrega contigo.');
@@ -268,16 +227,12 @@
                 const nequiUrl = `nequi://pago?telefono=3197118858&monto=25000`;
                 const fallbackUrl = `https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Nequi`;
                 
-                // Intentar abrir Nequi
                 window.location.href = nequiUrl;
-                
-                // Si no abre, mostrar WhatsApp después de 1 segundo
-                setTimeout(() => {
-                    window.open(fallbackUrl, '_blank');
-                }, 1000);
+                setTimeout(() => window.open(fallbackUrl, '_blank'), 1000);
             };
 
-            const mostrarInfoBancolombia = () => {
+            const abrirBancolombia = () => {
+                // Para Bancolombia mostramos la información ya que no hay deep link confiable
                 const mensaje = `🏦 *INFORMACIÓN BANCOLOMBIA* 🏦
 
 📊 *Datos para transferencia:*
@@ -312,15 +267,9 @@
                 const nombreCompleto = userData.nombre + (userData.apellido ? ' ' + userData.apellido : '');
                 const metodoPagoText = {
                     'nequi': '📱 Nequi',
-                    'bancolombia': '🏦 Transferencia Bancolombia', 
+                    'bancolombia': '🏦 Transferencia Bancolombia',
                     'efectivo': '💵 Efectivo'
                 }[userData.metodoPago];
-
-                const estadoVenta = userData.tipoVenta === 'reservado' ? 'RESERVADO' : 'PAGADO';
-                const valorTexto = userData.tipoVenta === 'reservado' ? '💵 *Valor por Pagar:* $25.000 COP' : '💵 *Valor Pagado:* $25.000 COP';
-
-                const totalVendidos = soldNumbers.size + (userData.tipoVenta === 'pagado' ? 1 : 0);
-                const totalReservados = reservedNumbers.size + (userData.tipoVenta === 'reservado' ? 1 : 0);
 
                 const message = `🎟️ *NUEVA VENTA DE RIFA* 🎟️\n\n` +
                     `👤 *Cliente:* ${nombreCompleto}\n` +
@@ -330,12 +279,8 @@
                     `🕒 *Fecha:* ${new Date().toLocaleString('es-CO')}\n\n` +
                     `🎯 *Número Vendido:* ${num.toString().padStart(3, '0')}\n` +
                     `💰 *Premio:* $1.000.000 COP\n` +
-                    `${valorTexto}\n` +
-                    `📊 *ESTADÍSTICAS:*\n` +
-                    `• Vendidos: ${totalVendidos}/100\n` +
-                    `• Reservados: ${totalReservados}\n` +
-                    `• Disponibles: ${100 - totalVendidos - totalReservados}/100\n\n` +
-                    `✅ *${estadoVenta}*`;
+                    `💵 *Valor Pagado:* $25.000 COP\n\n` +
+                    `✅ *VENTA CONFIRMADA*`;
 
                 window.open(`https://wa.me/573197118858?text=${encodeURIComponent(message)}`, '_blank');
             };
@@ -348,10 +293,6 @@
             const shareClientTicket = (num) => {
                 const userInfo = ticketData[num] || {};
                 const nombreCompleto = userInfo.nombre + (userInfo.apellido ? ' ' + userInfo.apellido : '') || 'Cliente';
-                const estadoTexto = userInfo.tipoVenta === 'reservado' ? 
-                    '⏳ *ESTADO: RESERVADO*\n⚠️ *DEBES PAGAR ANTES DEL SORTEO*\n❌ *Número que no se paga no juega*' : 
-                    '✅ *ESTADO: PAGADO*';
-
                 const message = `🎟️ *BOLETA OFICIAL - RIFA $1.000.000* 🎟️\n\n` +
                     `👤 *Titular:* ${nombreCompleto}\n` +
                     `📱 *Teléfono:* ${userInfo.telefono || 'Registrado'}\n\n` +
@@ -359,75 +300,12 @@
                     `💰 *Premio:* $1.000.000 COP\n` +
                     `💵 *Valor:* $25.000 COP\n` +
                     `🎲 *Sorteo:* Chance Pick 3 Día\n` +
-                    `📅 *Fecha Sorteo:* 16 de Octubre 2025\n\n` +
-                    `${estadoTexto}\n\n` +
+                    `📅 *Fecha:* 16 de Octubre\n\n` +
                     `🏆 *Organiza:* Franklin Monsalve\n` +
                     `📞 *Contacto:* +57 3197118858\n\n` +
                     `✅ *BOLETA REGISTRADA OFICIALMENTE*\n` +
                     `¡Mucha suerte! 🍀`;
                 window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-            };
-
-            const realizarSorteo = () => {
-                const numerosVendidos = Array.from(soldNumbers);
-                if (numerosVendidos.length === 0) {
-                    alert('❌ No hay números vendidos para realizar el sorteo');
-                    return;
-                }
-
-                // Animación del sorteo
-                let count = 0;
-                const interval = setInterval(() => {
-                    const randomNum = numerosVendidos[Math.floor(Math.random() * numerosVendidos.length)];
-                    setNumeroGanador(randomNum);
-                    count++;
-                    
-                    if (count > 20) {
-                        clearInterval(interval);
-                        const ganadorDefinitivo = numerosVendidos[Math.floor(Math.random() * numerosVendidos.length)];
-                        setNumeroGanador(ganadorDefinitivo);
-                        setTimeout(() => setShowGanador(true), 500);
-                        
-                        // Guardar resultado en Firebase
-                        db.collection('rifa').doc('sorteo').set({
-                            ganador: ganadorDefinitivo,
-                            fecha: new Date().toLocaleString('es-CO'),
-                            totalParticipantes: numerosVendidos.length
-                        });
-                    }
-                }, 100);
-            };
-
-            const exportToGoogleSheets = async () => {
-                const datosExportar = [
-                    ['Número', 'Nombre', 'Apellido', 'Teléfono', 'Email', 'Método Pago', 'Estado', 'Fecha']
-                ];
-                
-                Object.values(ticketData).forEach(ticket => {
-                    datosExportar.push([
-                        ticket.numero.toString().padStart(3, '0'),
-                        ticket.nombre,
-                        ticket.apellido || '',
-                        ticket.telefono,
-                        ticket.email || '',
-                        ticket.metodoPago,
-                        ticket.estado,
-                        ticket.fecha
-                    ]);
-                });
-
-                const csvContent = datosExportar.map(row => row.join(',')).join('\n');
-                const blob = new Blob([csvContent], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `rifa-datos-${new Date().toISOString().split('T')[0]}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                alert('📊 Datos exportados correctamente.');
             };
 
             const openAdminPanel = () => {
@@ -454,26 +332,22 @@
                     return;
                 }
 
-                if (confirm('⚠️ ¿Estás seguro de querer limpiar TODOS los datos?\n\n¡Esta acción NO se puede deshacer!')) {
+                if (confirm('⚠️ ¿Estás seguro de querer limpiar TODOS los datos de la rifa?\n\nEsto eliminará:\n• Todos los números vendidos\n• Datos de clientes\n• Historial de ventas\n\n¡Esta acción NO se puede deshacer!')) {
                     localStorage.removeItem('rifaSoldNumbers');
-                    localStorage.removeItem('rifaReservedNumbers');
                     localStorage.removeItem('rifaTicketData');
                     setSoldNumbers(new Set());
-                    setReservedNumbers(new Set());
                     setTicketData({});
                     setSelectedNumbers(new Set());
                     setLastSale(null);
                     
                     try {
                         await db.collection('rifa').doc('numbers').set({});
-                        await db.collection('rifa').doc('reserved').set({});
                         await db.collection('rifa').doc('tickets').set({});
-                        await db.collection('rifa').doc('sorteo').set({});
                     } catch (error) {
                         console.log('⚠️ No se pudo limpiar Firebase');
                     }
                     
-                    alert('✅ Todos los datos han sido limpiados');
+                    alert('✅ Todos los datos han sido limpiados correctamente');
                 }
             };
 
@@ -502,7 +376,7 @@
                         <div className="max-w-6xl mx-auto mb-4">
                             <div className="bg-green-500/20 backdrop-blur-lg rounded-xl p-3 border border-green-400/30 animate-pulse">
                                 <p className="text-white font-bold text-center text-sm sm:text-base">
-                                    🎉 {lastSale.tipoVenta === 'reservado' ? 'NUEVA RESERVA' : 'NUEVA VENTA'}! Número {lastSale.numero.toString().padStart(3, '0')} - {lastSale.cliente}
+                                    🎉 ¡NUEVA VENTA! Número {lastSale.numero.toString().padStart(3, '0')} - {lastSale.cliente}
                                 </p>
                             </div>
                         </div>
@@ -542,12 +416,6 @@
                                             </button>
                                         ) : (
                                             <div className="space-y-2">
-                                                <button onClick={() => setShowSorteoPanel(true)} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
-                                                    🎯 Realizar Sorteo
-                                                </button>
-                                                <button onClick={exportToGoogleSheets} className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
-                                                    📊 Exportar a Sheets
-                                                </button>
                                                 <button onClick={clearAllData} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg sm:rounded-xl transition-all text-xs sm:text-sm">
                                                     🗑️ Limpiar Todos los Datos
                                                 </button>
@@ -562,7 +430,7 @@
                         </div>
                     </div>
 
-                    {/* Números vendidos y seleccionados - CORREGIDO */}
+                    {/* Números vendidos y seleccionados */}
                     <div className="max-w-6xl mx-auto mb-4 sm:mb-6 space-y-3 sm:space-y-4">
                         {soldNumbers.size > 0 && (
                             <div className="bg-red-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-red-400/30">
@@ -570,32 +438,19 @@
                                     🔒 Vendidos: {soldNumbers.size}/100
                                 </p>
                                 <div className="flex flex-wrap gap-1 sm:gap-2 max-h-20 overflow-y-auto">
-                                    {Array.from(soldNumbers).sort((a, b) => a - b).map(num => (
-                                        <span key={num} className="bg-red-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold">
-                                            {num.toString().padStart(3, '0')}
-                                            {ticketData[num] && ' 👤'}
-                                        </span>
-                                    ))}
+                                    {Array.from(soldNumbers).sort((a, b) => a - b).map(num => {
+                                        const clientData = ticketData[num];
+                                        return (
+                                            <span 
+                                                key={num} 
+                                                className="bg-red-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold"
+                                            >
+                                                {num.toString().padStart(3, '0')}
+                                                {clientData && ' 👤'}
+                                            </span>
+                                        );
+                                    })}
                                 </div>
-                            </div>
-                        )}
-
-                        {reservedNumbers.size > 0 && (
-                            <div className="bg-yellow-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-yellow-400/30">
-                                <p className="text-white font-semibold mb-2 text-sm sm:text-base">
-                                    ⏳ Reservados: {reservedNumbers.size}
-                                </p>
-                                <div className="flex flex-wrap gap-1 sm:gap-2 max-h-20 overflow-y-auto">
-                                    {Array.from(reservedNumbers).sort((a, b) => a - b).map(num => (
-                                        <span key={num} className="bg-yellow-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold">
-                                            {num.toString().padStart(3, '0')}
-                                            {ticketData[num] && ' 👤'}
-                                        </span>
-                                    ))}
-                                </div>
-                                <p className="text-white/70 text-xs sm:text-sm mt-2">
-                                    ⚠️ Números reservados deben pagarse antes del sorteo
-                                </p>
                             </div>
                         )}
                         
@@ -616,6 +471,24 @@
                                 </p>
                             </div>
                         )}
+
+                        {pendingNumbers.size > 0 && (
+                            <div className="bg-yellow-500/20 backdrop-blur-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-yellow-400/30">
+                                <p className="text-white font-semibold mb-2 text-sm sm:text-base">
+                                    ⏳ En proceso: {pendingNumbers.size}
+                                </p>
+                                <div className="flex flex-wrap gap-1 sm:gap-2">
+                                    {Array.from(pendingNumbers).sort((a, b) => a - b).map(num => (
+                                        <span key={num} className="bg-yellow-500 text-white px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-bold">
+                                            {num.toString().padStart(3, '0')}
+                                        </span>
+                                    ))}
+                                </div>
+                                <p className="text-white/70 text-xs sm:text-sm mt-2">
+                                    📝 Completando formulario...
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Grid de números */}
@@ -624,19 +497,17 @@
                             {numbers.map((num) => {
                                 const isSelected = selectedNumbers.has(num);
                                 const isSold = soldNumbers.has(num);
-                                const isReserved = reservedNumbers.has(num);
                                 const isPending = pendingNumbers.has(num);
+                                const hasData = ticketData[num];
                                 
                                 return (
                                     <div key={num} className="relative">
                                         <button
                                             onClick={() => toggleNumber(num)}
-                                            disabled={isSold || isReserved || isPending}
+                                            disabled={isSold || isPending}
                                             className={`w-full number-button rounded-lg sm:rounded-xl font-bold text-sm sm:text-lg transition-all duration-200 ${
                                                 isSold
                                                     ? 'bg-red-500/50 text-white cursor-not-allowed opacity-60'
-                                                    : isReserved
-                                                    ? 'bg-yellow-500/50 text-white cursor-not-allowed opacity-60'
                                                     : isPending
                                                     ? 'bg-yellow-500 text-white cursor-not-allowed shadow-lg'
                                                     : isSelected
@@ -646,20 +517,20 @@
                                         >
                                             {num.toString().padStart(3, '0')}
                                         </button>
-                                        {isSelected && !isSold && !isReserved && !isPending && (
+                                        {isSelected && !isSold && !isPending && (
                                             <span className="absolute -top-1 -right-1 text-yellow-400 text-base sm:text-xl">✓</span>
                                         )}
                                         {isPending && (
                                             <span className="absolute -top-1 -right-1 text-yellow-300 text-base sm:text-xl">⏳</span>
                                         )}
-                                        {isSold && ticketData[num] && (
+                                        {isSold && hasData && (
                                             <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-xs">
                                                 👤
                                             </div>
                                         )}
-                                        {isReserved && ticketData[num] && (
-                                            <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-xs">
-                                                👤
+                                        {isSold && (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <span className="text-xl sm:text-2xl">🔒</span>
                                             </div>
                                         )}
                                     </div>
@@ -682,7 +553,12 @@
                                     {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => (
                                         <button
                                             key={num}
-                                            onClick={() => openForm(num)}
+                                            onClick={() => {
+                                                const newPending = new Set(pendingNumbers);
+                                                newPending.add(num);
+                                                setPendingNumbers(newPending);
+                                                openForm(num);
+                                            }}
                                             className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-2 sm:py-3 px-2 sm:px-4 rounded-lg sm:rounded-xl transition-all shadow-lg hover:scale-105 text-sm sm:text-base"
                                         >
                                             📝 {num.toString().padStart(3, '0')}
@@ -705,84 +581,128 @@
                                 
                                 <form onSubmit={submitForm} className="space-y-3 sm:space-y-4">
                                     <div>
-                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-                                        <input type="text" name="nombre" value={formData.nombre} onChange={handleFormChange} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base" placeholder="Ingresa tu nombre" required />
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                            Nombre *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="nombre"
+                                            value={formData.nombre}
+                                            onChange={handleFormChange}
+                                            className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
+                                            placeholder="Ingresa tu nombre"
+                                            required
+                                        />
                                     </div>
                                     
                                     <div>
-                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Apellido</label>
-                                        <input type="text" name="apellido" value={formData.apellido} onChange={handleFormChange} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base" placeholder="Ingresa tu apellido" />
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                            Apellido
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="apellido"
+                                            value={formData.apellido}
+                                            onChange={handleFormChange}
+                                            className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
+                                            placeholder="Ingresa tu apellido"
+                                        />
                                     </div>
                                     
                                     <div>
-                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Teléfono/WhatsApp *</label>
-                                        <input type="tel" name="telefono" value={formData.telefono} onChange={handleFormChange} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base" placeholder="Ej: 3001234567" required />
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                            Teléfono/WhatsApp *
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            name="telefono"
+                                            value={formData.telefono}
+                                            onChange={handleFormChange}
+                                            className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
+                                            placeholder="Ej: 3001234567"
+                                            required
+                                        />
                                     </div>
                                     
                                     <div>
-                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Email</label>
-                                        <input type="email" name="email" value={formData.email} onChange={handleFormChange} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base" placeholder="tu@email.com" />
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                            Email
+                                        </label>
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            value={formData.email}
+                                            onChange={handleFormChange}
+                                            className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
+                                            placeholder="tu@email.com"
+                                        />
                                     </div>
 
-                                    {/* TIPO DE VENTA */}
+                                    {/* MÉTODO DE PAGO */}
                                     <div>
-                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">🎯 Tipo de Venta *</label>
+                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                                            💰 Método de Pago *
+                                        </label>
                                         <div className="space-y-2">
                                             <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
-                                                <input type="radio" name="tipoVenta" value="pagado" checked={formData.tipoVenta === 'pagado'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
+                                                <input
+                                                    type="radio"
+                                                    name="metodoPago"
+                                                    value="nequi"
+                                                    checked={formData.metodoPago === 'nequi'}
+                                                    onChange={handleFormChange}
+                                                    className="text-purple-600 focus:ring-purple-500"
+                                                />
                                                 <span className="flex items-center space-x-2">
-                                                    <span className="text-xl">💰</span>
-                                                    <span className="text-sm font-medium">Pago Inmediato</span>
+                                                    <span className="text-xl">📱</span>
+                                                    <span className="text-sm font-medium">Nequi (Abrirá la app automáticamente)</span>
                                                 </span>
                                             </label>
                                             
                                             <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
-                                                <input type="radio" name="tipoVenta" value="reservado" checked={formData.tipoVenta === 'reservado'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
+                                                <input
+                                                    type="radio"
+                                                    name="metodoPago"
+                                                    value="bancolombia"
+                                                    checked={formData.metodoPago === 'bancolombia'}
+                                                    onChange={handleFormChange}
+                                                    className="text-purple-600 focus:ring-purple-500"
+                                                />
                                                 <span className="flex items-center space-x-2">
-                                                    <span className="text-xl">⏳</span>
-                                                    <span className="text-sm font-medium">Reservar (Pagar después)</span>
+                                                    <span className="text-xl">🏦</span>
+                                                    <span className="text-sm font-medium">Transferencia Bancolombia</span>
+                                                </span>
+                                            </label>
+                                            
+                                            <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="metodoPago"
+                                                    value="efectivo"
+                                                    checked={formData.metodoPago === 'efectivo'}
+                                                    onChange={handleFormChange}
+                                                    className="text-purple-600 focus:ring-purple-500"
+                                                />
+                                                <span className="flex items-center space-x-2">
+                                                    <span className="text-xl">💵</span>
+                                                    <span className="text-sm font-medium">Efectivo (Coordinaremos entrega)</span>
                                                 </span>
                                             </label>
                                         </div>
                                     </div>
-
-                                    {/* MÉTODO DE PAGO (solo si es pago inmediato) */}
-                                    {formData.tipoVenta === 'pagado' && (
-                                        <div>
-                                            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">💰 Método de Pago *</label>
-                                            <div className="space-y-2">
-                                                <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
-                                                    <input type="radio" name="metodoPago" value="nequi" checked={formData.metodoPago === 'nequi'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
-                                                    <span className="flex items-center space-x-2">
-                                                        <span className="text-xl">📱</span>
-                                                        <span className="text-sm font-medium">Nequi</span>
-                                                    </span>
-                                                </label>
-                                                
-                                                <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
-                                                    <input type="radio" name="metodoPago" value="bancolombia" checked={formData.metodoPago === 'bancolombia'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
-                                                    <span className="flex items-center space-x-2">
-                                                        <span className="text-xl">🏦</span>
-                                                        <span className="text-sm font-medium">Transferencia Bancolombia</span>
-                                                    </span>
-                                                </label>
-                                                
-                                                <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg hover:bg-purple-50 cursor-pointer">
-                                                    <input type="radio" name="metodoPago" value="efectivo" checked={formData.metodoPago === 'efectivo'} onChange={handleFormChange} className="text-purple-600 focus:ring-purple-500" />
-                                                    <span className="flex items-center space-x-2">
-                                                        <span className="text-xl">💵</span>
-                                                        <span className="text-sm font-medium">Efectivo</span>
-                                                    </span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    )}
                                     
                                     <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4">
-                                        <button type="submit" className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">
-                                            {formData.tipoVenta === 'reservado' ? '⏳ Reservar' : '💰 Pagar'}
+                                        <button
+                                            type="submit"
+                                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                        >
+                                            📤 Registrar
                                         </button>
-                                        <button type="button" onClick={cancelForm} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">
+                                        <button
+                                            type="button"
+                                            onClick={cancelForm}
+                                            className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                        >
                                             ✕ Cancelar
                                         </button>
                                     </div>
@@ -791,106 +711,43 @@
                         </div>
                     )}
 
-                    {/* Modal de SORTEO */}
-                    {showSorteoPanel && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
-                            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
-                                <div className="text-center mb-4 sm:mb-6">
-                                    <div className="text-3xl sm:text-4xl mb-2">🎯</div>
-                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Realizar Sorteo</h2>
-                                    <p className="text-gray-600 text-sm sm:text-base mt-2">
-                                        Total números vendidos: {soldNumbers.size}
-                                    </p>
-                                </div>
-                                
-                                <div className="space-y-4">
-                                    {numeroGanador !== null && (
-                                        <div className="bg-yellow-100 border border-yellow-300 rounded-xl p-4 text-center">
-                                            <p className="text-lg font-bold text-yellow-800">Número en sorteo:</p>
-                                            <p className="text-4xl font-bold text-purple-600">{numeroGanador.toString().padStart(3, '0')}</p>
-                                        </div>
-                                    )}
-                                    
-                                    <div className="flex gap-3 pt-4">
-                                        <button onClick={realizarSorteo} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl transition-all">
-                                            🎯 Iniciar Sorteo
-                                        </button>
-                                        <button onClick={() => setShowSorteoPanel(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all">
-                                            ✕ Cerrar
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Modal GANADOR */}
-                    {showGanador && numeroGanador !== null && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
-                            <div className="bg-white rounded-2xl sm:rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl mx-2 text-center">
-                                <div className="text-6xl mb-4">🏆</div>
-                                <h2 className="text-2xl sm:text-3xl font-bold text-green-600 mb-4">¡TENEMOS GANADOR!</h2>
-                                
-                                <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-4xl sm:text-6xl font-bold py-4 sm:py-6 rounded-xl sm:rounded-2xl my-4 sm:my-6">
-                                    {numeroGanador.toString().padStart(3, '0')}
-                                </div>
-
-                                {ticketData[numeroGanador] && (
-                                    <div className="text-left space-y-2 text-gray-800 mb-4">
-                                        <p className="text-lg font-semibold">👤 Ganador:</p>
-                                        <p className="text-xl font-bold text-purple-700">
-                                            {ticketData[numeroGanador].nombre} 
-                                            {ticketData[numeroGanador].apellido && ` ${ticketData[numeroGanador].apellido}`}
-                                        </p>
-                                        <p className="text-lg">📱 {ticketData[numeroGanador].telefono}</p>
-                                        {ticketData[numeroGanador].email && (
-                                            <p className="text-lg">📧 {ticketData[numeroGanador].email}</p>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="bg-green-100 rounded-xl p-4 mb-4">
-                                    <p className="text-lg font-bold text-green-800">Premio: $1.000.000 COP</p>
-                                    <p className="text-sm text-green-600">¡Felicidades al ganador!</p>
-                                </div>
-
-                                <button onClick={() => setShowGanador(false)} className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-xl transition-all">
-                                    ✅ Cerrar
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Modal de ADMINISTRADOR - CORREGIDO */}
+                    {/* Modal de ADMINISTRADOR */}
                     {showAdminPanel && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
                             <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2">
                                 <div className="text-center mb-4 sm:mb-6">
                                     <div className="text-3xl sm:text-4xl mb-2">🔐</div>
                                     <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Acceso Administrador</h2>
-                                    <p className="text-gray-600 text-sm sm:text-base mt-2">Ingresa la contraseña de administrador</p>
+                                    <p className="text-gray-600 text-sm sm:text-base mt-2">
+                                        Ingresa la contraseña de administrador
+                                    </p>
                                 </div>
                                 
                                 <form onSubmit={handleAdminLogin} className="space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
-                                        <input 
-                                            type="password" 
-                                            value={adminPassword} 
-                                            onChange={(e) => setAdminPassword(e.target.value)} 
-                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500" 
-                                            placeholder="Ingresa la contraseña" 
-                                            required 
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Contraseña
+                                        </label>
+                                        <input
+                                            type="password"
+                                            value={adminPassword}
+                                            onChange={(e) => setAdminPassword(e.target.value)}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="Ingresa la contraseña"
+                                            required
                                         />
                                     </div>
                                     
                                     <div className="flex gap-3 pt-4">
-                                        <button type="submit" className="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-xl transition-all">
+                                        <button
+                                            type="submit"
+                                            className="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                                        >
                                             🔓 Acceder
                                         </button>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setShowAdminPanel(false)} 
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAdminPanel(false)}
                                             className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
                                         >
                                             ✕ Cancelar
@@ -905,20 +762,10 @@
                     {showTicket && currentTicket !== null && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
                             <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-md w-full shadow-2xl mx-2 max-h-[90vh] overflow-y-auto">
-                                <div className={`text-center border-4 border-dashed rounded-xl sm:rounded-2xl p-4 sm:p-6 ${
-                                    ticketData[currentTicket]?.tipoVenta === 'reservado' ? 'border-yellow-400 bg-yellow-50' : 'border-green-500'
-                                }`}>
-                                    <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">
-                                        {ticketData[currentTicket]?.tipoVenta === 'reservado' ? '⏳' : '✅'}
-                                    </div>
-                                    <h2 className="text-xl sm:text-3xl font-bold mb-2">
-                                        {ticketData[currentTicket]?.tipoVenta === 'reservado' ? '¡BOLETA RESERVADA!' : '¡BOLETA PAGADA!'}
-                                    </h2>
-                                    <div className={`${
-                                        ticketData[currentTicket]?.tipoVenta === 'reservado' ? 
-                                        'bg-gradient-to-r from-yellow-400 to-yellow-600' : 
-                                        'bg-gradient-to-r from-green-400 to-green-600'
-                                    } text-black text-3xl sm:text-6xl font-bold py-2 sm:py-4 rounded-xl sm:rounded-2xl my-3 sm:my-4`}>
+                                <div className="text-center border-4 border-dashed border-green-500 rounded-xl sm:rounded-2xl p-4 sm:p-6">
+                                    <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">✅</div>
+                                    <h2 className="text-xl sm:text-3xl font-bold text-green-600 mb-2">¡BOLETA REGISTRADA!</h2>
+                                    <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-3xl sm:text-6xl font-bold py-2 sm:py-4 rounded-xl sm:rounded-2xl my-3 sm:my-4">
                                         {currentTicket.toString().padStart(3, '0')}
                                     </div>
                                     
@@ -930,17 +777,16 @@
                                                 {ticketData[currentTicket].apellido && ` ${ticketData[currentTicket].apellido}`}
                                             </p>
                                             <p className="text-base sm:text-lg">📱 {ticketData[currentTicket].telefono}</p>
-                                            {ticketData[currentTicket].email && <p className="text-base sm:text-lg">📧 {ticketData[currentTicket].email}</p>}
-                                            <p className="text-base sm:text-lg font-semibold">💰 Estado: {
-                                                ticketData[currentTicket].tipoVenta === 'reservado' ? '⏳ RESERVADO' : '✅ PAGADO'
-                                            }</p>
-                                            {ticketData[currentTicket].tipoVenta === 'reservado' && (
-                                                <div className="bg-yellow-100 border border-yellow-300 rounded-lg p-3 mt-2">
-                                                    <p className="text-sm font-semibold text-yellow-800">⚠️ IMPORTANTE:</p>
-                                                    <p className="text-sm text-yellow-700">Debes pagar antes del 16 de Octubre 2025</p>
-                                                    <p className="text-sm text-yellow-700">❌ Número que no se paga no juega</p>
-                                                </div>
+                                            {ticketData[currentTicket].email && (
+                                                <p className="text-base sm:text-lg">📧 {ticketData[currentTicket].email}</p>
                                             )}
+                                            <p className="text-base sm:text-lg font-semibold">
+                                                💰 Método: {
+                                                    ticketData[currentTicket].metodoPago === 'nequi' ? '📱 Nequi' :
+                                                    ticketData[currentTicket].metodoPago === 'bancolombia' ? '🏦 Bancolombia' :
+                                                    ticketData[currentTicket].metodoPago === 'efectivo' ? '💵 Efectivo' : ''
+                                                }
+                                            </p>
                                             <hr className="my-2 sm:my-3 border-gray-300" />
                                         </div>
                                     )}
@@ -949,7 +795,7 @@
                                         <p className="text-lg sm:text-2xl font-bold text-green-600">Premio: $1.000.000</p>
                                         <p className="text-base sm:text-lg">Valor: $25.000 COP</p>
                                         <p className="text-base sm:text-lg">Sorteo: Chance Pick 3</p>
-                                        <p className="text-base sm:text-lg font-bold">Fecha Sorteo: 16 Octubre 2025</p>
+                                        <p className="text-base sm:text-lg font-bold">Fecha: 16 Octubre</p>
                                         <hr className="my-2 sm:my-3 border-gray-300" />
                                         <div className="bg-purple-100 rounded-lg p-2 sm:p-3 mb-2">
                                             <p className="text-xs sm:text-sm font-semibold text-purple-900">💳 Pago Nequi:</p>
@@ -966,8 +812,18 @@
                                     </div>
                                 </div>
                                 <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6">
-                                    <button onClick={() => shareClientTicket(currentTicket)} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">📤 Compartir</button>
-                                    <button onClick={() => setShowTicket(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">✅ Listo</button>
+                                    <button
+                                        onClick={() => shareClientTicket(currentTicket)}
+                                        className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                    >
+                                        📤 Compartir
+                                    </button>
+                                    <button
+                                        onClick={() => setShowTicket(false)}
+                                        className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base"
+                                    >
+                                        ✅ Listo
+                                    </button>
                                 </div>
                             </div>
                         </div>
