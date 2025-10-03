@@ -217,10 +217,13 @@
                 setSelectedNumbers(newSelected);
             };
 
-            const openForm = (num) => {
-                setCurrentTicket(num);
+            const openForm = () => {
+                if (selectedNumbers.size === 0) {
+                    alert('❌ Por favor selecciona al menos un número');
+                    return;
+                }
                 setShowForm(true);
-                setPendingNumbers(new Set([...pendingNumbers, num]));
+                setPendingNumbers(new Set([...pendingNumbers, ...selectedNumbers]));
                 setFormData({
                     nombre: '',
                     apellido: '',
@@ -259,8 +262,8 @@
             };
 
             const abrirBancolombia = () => {
-                // Deep link específico para transferencia en Bancolombia
-                const appUrl = "bancolombia://transferir?numero=31172084632&valor=25000";
+                // Deep link mejorado para Bancolombia
+                const appUrl = "bancolombia://app";
                 const fallbackUrl = "https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Bancolombia";
                 
                 // Intento abrir la app
@@ -272,21 +275,22 @@
                 }, 500);
             };
 
-            const generarTicketWhatsApp = (num, userData, estado) => {
+            const generarTicketWhatsApp = (numeros, userData, estado) => {
                 const nombreCompleto = `${userData.nombre} ${userData.apellido || ''}`.trim();
                 const estadoTexto = estado === 'pagado' ? 'PAGADO' : 'RESERVADO';
+                const numerosTexto = Array.from(numeros).map(num => num.toString().padStart(3, '0')).join(', ');
                 
                 const message = `🎟️ *TICKET OFICIAL - RIFA $1.000.000* 🎟️\n\n` +
                     `👤 *Cliente:* ${nombreCompleto}\n` +
                     `📱 *Teléfono:* ${userData.telefono}\n` +
                     `📧 *Email:* ${userData.email || 'No proporcionado'}\n\n` +
-                    `🎯 *Número Asignado:* ${num.toString().padStart(3, '0')}\n` +
+                    `🎯 *Números Asignados:* ${numerosTexto}\n` +
                     `🎫 *Ticket No:* ${userData.ticketNumber}\n` +
                     `📋 *Estado:* ${estadoTexto}\n\n` +
                     `💰 *Premio:* $1.000.000 COP\n` +
-                    `💵 *Valor Pagado:* $25.000 COP\n` +
-                    `🎲 *Sorteo:* Chance Pick 3\n` +
-                    `📅 *Fecha Sorteo:* 16 de Octubre\n\n` +
+                    `💵 *Valor Total:* ${25000 * numeros.size} COP\n` +
+                    `🎲 *Sorteo:* Chance Pick 3 Noche\n` +
+                    `📅 *Fecha Sorteo:* 31 de Octubre\n\n` +
                     `🏆 *Organiza:* Franklin Monsalve\n` +
                     `📞 *Contacto:* +57 3197118858\n\n` +
                     `✅ *TICKET REGISTRADO OFICIALMENTE*\n` +
@@ -324,28 +328,29 @@
                     const ticketInfo = {
                         ...formData,
                         fecha: new Date().toLocaleString('es-CO'),
-                        numero: currentTicket,
+                        numeros: Array.from(selectedNumbers),
                         estado: 'pagado',
                         ticketNumber,
                         comprobanteURL,
                         timestamp: new Date().getTime()
                     };
 
-                    // Actualizar estado local
-                    const newTicketData = { ...ticketData, [currentTicket]: ticketInfo };
-                    const newSold = new Set([...soldNumbers, currentTicket]);
-                    const newSelected = new Set(selectedNumbers);
-                    newSelected.delete(currentTicket);
-                    const newPending = new Set(pendingNumbers);
-                    newPending.delete(currentTicket);
+                    // Actualizar estado local para todos los números seleccionados
+                    const newTicketData = { ...ticketData };
+                    const newSold = new Set([...soldNumbers, ...selectedNumbers]);
                     const newReserved = new Set(reservedNumbers);
-                    newReserved.delete(currentTicket);
+                    
+                    // Guardar información para cada número
+                    selectedNumbers.forEach(num => {
+                        newTicketData[num] = ticketInfo;
+                        newReserved.delete(num);
+                    });
 
                     setTicketData(newTicketData);
                     setSoldNumbers(newSold);
-                    setSelectedNumbers(newSelected);
-                    setPendingNumbers(newPending);
                     setReservedNumbers(newReserved);
+                    setSelectedNumbers(new Set());
+                    setPendingNumbers(new Set());
                     setShowForm(false);
 
                     // Guardar en localStorage
@@ -358,14 +363,21 @@
                     
                     await db.collection('rifa').doc('numbers').set(numbersObj);
                     await db.collection('rifa').doc('tickets').set(newTicketData);
-                    await db.collection('rifa').doc('reserved').update({ [currentTicket]: firebase.firestore.FieldValue.delete() });
+                    
+                    // Eliminar números reservados si existen
+                    const reservedUpdate = {};
+                    selectedNumbers.forEach(num => {
+                        reservedUpdate[num] = firebase.firestore.FieldValue.delete();
+                    });
+                    await db.collection('rifa').doc('reserved').update(reservedUpdate);
+                    
                     await db.collection('rifa').doc('metadata').set({ ticketCounter: ticketCounter + 1 }, { merge: true });
 
                     setTicketCounter(ticketCounter + 1);
 
                     // Notificación y procesar pago
                     setLastSale({
-                        numero: currentTicket,
+                        numeros: Array.from(selectedNumbers),
                         cliente: formData.nombre + (formData.apellido ? ' ' + formData.apellido : ''),
                         telefono: formData.telefono,
                         metodoPago: formData.metodoPago,
@@ -373,14 +385,15 @@
                     });
 
                     // Generar y enviar ticket por WhatsApp automáticamente
-                    const ticketMessage = generarTicketWhatsApp(currentTicket, ticketInfo, 'pagado');
+                    const ticketMessage = generarTicketWhatsApp(selectedNumbers, ticketInfo, 'pagado');
                     window.open(`https://wa.me/57${formData.telefono}?text=${encodeURIComponent(ticketMessage)}`, '_blank');
 
                     // También enviar notificación a Franklin
-                    sendToFranklinWhatsApp(currentTicket, ticketInfo, 'pagado');
+                    sendToFranklinWhatsApp(selectedNumbers, ticketInfo, 'pagado');
 
                     // Mostrar confirmación al usuario
-                    showClientTicket(currentTicket);
+                    setCurrentTicket(Array.from(selectedNumbers)[0]);
+                    setShowTicket(true);
 
                 } catch (error) {
                     console.error('Error guardando en Firebase:', error);
@@ -401,49 +414,56 @@
                 const ticketInfo = {
                     ...formData,
                     fecha: new Date().toLocaleString('es-CO'),
-                    numero: currentTicket,
+                    numeros: Array.from(selectedNumbers),
                     estado: 'reservado',
                     ticketNumber,
                     timestamp: new Date().getTime()
                 };
 
                 // Actualizar estado local
-                const newTicketData = { ...ticketData, [currentTicket]: ticketInfo };
-                const newReserved = new Set([...reservedNumbers, currentTicket]);
-                const newSelected = new Set(selectedNumbers);
-                newSelected.delete(currentTicket);
-                const newPending = new Set(pendingNumbers);
-                newPending.delete(currentTicket);
+                const newTicketData = { ...ticketData };
+                const newReserved = new Set([...reservedNumbers, ...selectedNumbers]);
+
+                // Guardar información para cada número
+                selectedNumbers.forEach(num => {
+                    newTicketData[num] = ticketInfo;
+                });
 
                 setTicketData(newTicketData);
                 setReservedNumbers(newReserved);
-                setSelectedNumbers(newSelected);
-                setPendingNumbers(newPending);
+                setSelectedNumbers(new Set());
+                setPendingNumbers(new Set());
                 setShowForm(false);
 
                 // Guardar en Firebase
-                await db.collection('rifa').doc('reserved').set({ [currentTicket]: true }, { merge: true });
+                const reservedObj = {};
+                selectedNumbers.forEach(num => { reservedObj[num] = true; });
+                
+                await db.collection('rifa').doc('reserved').set(reservedObj, { merge: true });
                 await db.collection('rifa').doc('tickets').set(newTicketData);
                 await db.collection('rifa').doc('metadata').set({ ticketCounter: ticketCounter + 1 }, { merge: true });
 
                 setTicketCounter(ticketCounter + 1);
                 
-                procesarAccionCliente(currentTicket, ticketInfo, 'reservado');
+                procesarAccionCliente(selectedNumbers, ticketInfo, 'reservado');
             };
 
-            const procesarAccionCliente = (num, userData, estado) => {
-                sendToFranklinWhatsApp(num, userData, estado);
-                sendConfirmationWhatsApp(num, userData, estado);
-                showClientTicket(num);
+            const procesarAccionCliente = (numeros, userData, estado) => {
+                sendToFranklinWhatsApp(numeros, userData, estado);
+                sendConfirmationWhatsApp(numeros, userData, estado);
+                setCurrentTicket(Array.from(numeros)[0]);
+                setShowTicket(true);
             };
 
-            const sendConfirmationWhatsApp = (num, userData, estado) => {
+            const sendConfirmationWhatsApp = (numeros, userData, estado) => {
                 const nombreCompleto = `${userData.nombre} ${userData.apellido || ''}`;
                 const estadoTexto = estado === 'pagado' ? 'PAGADO' : 'RESERVADO';
+                const numerosTexto = Array.from(numeros).map(num => num.toString().padStart(3, '0')).join(', ');
+                
                 const message = `🎟️ *CONFIRMACIÓN DE BOLETA - RIFA $1.000.000* 🎟️\n\n` +
                     `¡Hola ${nombreCompleto}! Tu boleta ha sido registrada con éxito.\n\n` +
                     `👤 *Titular:* ${nombreCompleto}\n` +
-                    `🎯 *Tu Número:* ${num.toString().padStart(3, '0')}\n` +
+                    `🎯 *Tus Números:* ${numerosTexto}\n` +
                     `🎫 *Ticket No:* ${userData.ticketNumber}\n` +
                     `📋 *Estado:* ${estadoTexto}\n\n` +
                     (estado === 'reservado' ? `⚠️ *IMPORTANTE:* Recuerda realizar el pago antes de la fecha del sorteo para participar. Número que no se paga no juega.\n\n` : '') +
@@ -451,7 +471,7 @@
                 window.open(`https://wa.me/57${userData.telefono}?text=${encodeURIComponent(message)}`, '_blank');
             };
 
-            const sendToFranklinWhatsApp = (num, userData, estado) => {
+            const sendToFranklinWhatsApp = (numeros, userData, estado) => {
                 const nombreCompleto = `${userData.nombre} ${userData.apellido || ''}`;
                 const metodoPagoText = {
                     'nequi': '📱 Nequi', 
@@ -460,16 +480,18 @@
                     'bancolombia': '🏦 Bancolombia'
                 }[userData.metodoPago];
 
+                const numerosTexto = Array.from(numeros).map(num => num.toString().padStart(3, '0')).join(', ');
+
                 const message = `🎟️ *NUEVA ${estado.toUpperCase()} DE RIFA* 🎟️\n\n` +
                     `👤 *Cliente:* ${nombreCompleto}\n` +
                     `📱 *Teléfono:* ${userData.telefono}\n` +
                     `📧 *Email:* ${userData.email || 'No proporcionado'}\n` +
                     `💰 *Método de Pago:* ${metodoPagoText}\n` +
                     `🕒 *Fecha:* ${new Date().toLocaleString('es-CO')}\n\n` +
-                    `🎯 *Número Vendido:* ${num.toString().padStart(3, '0')}\n` +
+                    `🎯 *Números Vendidos:* ${numerosTexto}\n` +
                     `🎫 *Ticket No:* ${userData.ticketNumber}\n` +
                     `💰 *Premio:* $1.000.000 COP\n` +
-                    `💵 *Valor Pagado:* $25.000 COP\n\n` +
+                    `💵 *Valor Total:* ${25000 * numeros.size} COP\n\n` +
                     `${estado === 'pagado' ? '✅ VENTA CONFIRMADA' : '📅 RESERVA CONFIRMADA'}`;
 
                 window.open(`https://wa.me/573197118858?text=${encodeURIComponent(message)}`, '_blank');
@@ -477,25 +499,29 @@
 
             const cancelForm = () => {
                 setShowForm(false);
-                setPendingNumbers(new Set([...pendingNumbers].filter(n => n !== currentTicket)));
+                setPendingNumbers(new Set([...pendingNumbers].filter(n => !selectedNumbers.has(n))));
             };
 
-            const showClientTicket = (num) => {
-                setCurrentTicket(num);
+            const showClientTicket = () => {
                 setShowTicket(true);
             };
 
-            const shareClientTicket = (num) => {
-                const userInfo = ticketData[num] || {};
+            const shareClientTicket = () => {
+                if (!currentTicket) return;
+                
+                const userInfo = ticketData[currentTicket] || {};
                 const nombreCompleto = userInfo.nombre + (userInfo.apellido ? ' ' + userInfo.apellido : '') || 'Cliente';
+                const numeros = userInfo.numeros || [currentTicket];
+                const numerosTexto = numeros.map(num => num.toString().padStart(3, '0')).join(', ');
+                
                 const message = `🎟️ *BOLETA OFICIAL - RIFA $1.000.000* 🎟️\n\n` +
                     `👤 *Titular:* ${nombreCompleto}\n` +
                     `📱 *Teléfono:* ${userInfo.telefono || 'Registrado'}\n\n` +
-                    `🎯 *Mi Número:* ${num.toString().padStart(3, '0')}\n` +
+                    `🎯 *Mis Números:* ${numerosTexto}\n` +
                     `💰 *Premio:* $1.000.000 COP\n` +
-                    `💵 *Valor:* $25.000 COP\n` +
-                    `🎲 *Sorteo:* Chance Pick 3 Día\n` +
-                    `📅 *Fecha:* 16 de Octubre\n\n` +
+                    `💵 *Valor:* ${25000 * numeros.length} COP\n` +
+                    `🎲 *Sorteo:* Chance Pick 3 Noche\n` +
+                    `📅 *Fecha:* 31 de Octubre\n\n` +
                     `🏆 *Organiza:* Franklin Monsalve\n` +
                     `📞 *Contacto:* +57 3197118858\n\n` +
                     `✅ *BOLETA REGISTRADA OFICIALMENTE*\n` +
@@ -573,20 +599,26 @@
                 // Preparar datos para la tabla
                 const tableData = [];
                 
-                // Obtener todos los tickets (vendidos y reservados)
-                const allTickets = Object.entries(ticketData)
-                    .map(([numero, data]) => ({
-                        ...data,
-                        numero: parseInt(numero)
-                    }))
-                    .sort((a, b) => a.ticketNumber.localeCompare(b.ticketNumber));
-                
+                // Obtener todos los tickets únicos
+                const uniqueTickets = {};
+                Object.entries(ticketData).forEach(([numero, data]) => {
+                    if (data.ticketNumber && !uniqueTickets[data.ticketNumber]) {
+                        uniqueTickets[data.ticketNumber] = {
+                            ...data,
+                            numeros: [parseInt(numero)]
+                        };
+                    } else if (data.ticketNumber && uniqueTickets[data.ticketNumber]) {
+                        uniqueTickets[data.ticketNumber].numeros.push(parseInt(numero));
+                    }
+                });
+
                 // Agregar filas a la tabla
-                allTickets.forEach(ticket => {
+                Object.values(uniqueTickets).sort((a, b) => a.ticketNumber.localeCompare(b.ticketNumber)).forEach(ticket => {
+                    const numerosTexto = ticket.numeros.map(num => num.toString().padStart(3, '0')).join(', ');
                     tableData.push([
                         ticket.ticketNumber,
                         `${ticket.nombre} ${ticket.apellido || ''}`.trim(),
-                        ticket.numero.toString().padStart(3, '0'),
+                        numerosTexto,
                         ticket.telefono,
                         ticket.email || '',
                         ticket.estado === 'pagado' ? 'PAGADO' : 'RESERVADO',
@@ -597,7 +629,7 @@
                 // Crear tabla
                 doc.autoTable({
                     startY: 35,
-                    head: [['Ticket', 'Cliente', 'Número', 'Teléfono', 'Email', 'Estado', 'Método Pago']],
+                    head: [['Ticket', 'Cliente', 'Números', 'Teléfono', 'Email', 'Estado', 'Método Pago']],
                     body: tableData,
                     theme: 'grid',
                     headStyles: { 
@@ -612,7 +644,7 @@
                     columnStyles: {
                         0: { cellWidth: 20 },
                         1: { cellWidth: 30 },
-                        2: { cellWidth: 15 },
+                        2: { cellWidth: 25 },
                         3: { cellWidth: 25 },
                         4: { cellWidth: 30 },
                         5: { cellWidth: 15 },
@@ -701,7 +733,7 @@
                         <div className="max-w-6xl mx-auto mb-4">
                             <div className="bg-green-500/20 backdrop-blur-lg rounded-xl p-3 border border-green-400/30 animate-pulse">
                                 <p className="text-white font-bold text-center text-sm sm:text-base">
-                                    🎉 ¡NUEVA VENTA! Número {lastSale.numero.toString().padStart(3, '0')} - {lastSale.cliente}
+                                    🎉 ¡NUEVA VENTA! Números {lastSale.numeros.map(num => num.toString().padStart(3, '0')).join(', ')} - {lastSale.cliente}
                                 </p>
                             </div>
                         </div>
@@ -722,11 +754,11 @@
                                     </div>
                                     <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
                                         <p className="text-xs sm:text-sm opacity-80">Sorteo</p>
-                                        <p className="text-sm sm:text-xl font-bold">Chance Pick 3</p>
+                                        <p className="text-sm sm:text-xl font-bold">Chance Pick 3 Noche</p>
                                     </div>
                                     <div className="bg-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
                                         <p className="text-xs sm:text-sm opacity-80">Fecha</p>
-                                        <p className="text-lg sm:text-2xl font-bold">16 Oct</p>
+                                        <p className="text-lg sm:text-2xl font-bold">31 Oct</p>
                                     </div>
                                 </div>
                                 <div className="mt-3 sm:mt-4 bg-white/10 rounded-lg sm:rounded-xl p-3">
@@ -808,7 +840,7 @@
                                     ))}
                                 </div>
                                 <p className="text-white/70 text-xs sm:text-sm mt-2">
-                                    ⚠️ Toca el botón del número para registrarlo
+                                    ⚠️ Toca el botón "Registrar Boletas" para completar los datos
                                 </p>
                             </div>
                         )}
@@ -869,21 +901,18 @@
                         <div className="max-w-6xl mx-auto">
                             <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-white/20">
                                 <h3 className="text-white text-lg sm:text-xl font-bold mb-3 sm:mb-4 text-center">
-                                    Registrar Boletas
+                                    Registrar Boletas ({selectedNumbers.size} números)
                                 </h3>
                                 <p className="text-white/70 text-center mb-3 sm:mb-4 text-xs sm:text-sm">
-                                    Toca el número para completar los datos
+                                    Total a pagar: ${25000 * selectedNumbers.size} COP
                                 </p>
-                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
-                                    {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => (
-                                        <button
-                                            key={num}
-                                            onClick={() => openForm(num)}
-                                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-2 sm:py-3 px-2 sm:px-4 rounded-lg sm:rounded-xl transition-all shadow-lg hover:scale-105 text-sm sm:text-base"
-                                        >
-                                            📝 {num.toString().padStart(3, '0')}
-                                        </button>
-                                    ))}
+                                <div className="flex justify-center">
+                                    <button
+                                        onClick={openForm}
+                                        className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:scale-105 text-base"
+                                    >
+                                        📝 Registrar {selectedNumbers.size} Número(s)
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -895,8 +924,15 @@
                             <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl mx-2 max-h-[90vh] overflow-y-auto">
                                 <div className="text-center mb-4 sm:mb-6">
                                     <div className="text-3xl sm:text-4xl mb-2">📝</div>
-                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Registrar Boleta</h2>
-                                    <p className="text-gray-600 text-sm sm:text-base">Número: <span className="font-bold text-xl sm:text-2xl text-purple-600">{currentTicket.toString().padStart(3, '0')}</span></p>
+                                    <h2 className="text-xl sm:text-2xl font-bold text-purple-900">Registrar Boletas</h2>
+                                    <p className="text-gray-600 text-sm sm:text-base">
+                                        Números: <span className="font-bold text-xl text-purple-600">
+                                            {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => num.toString().padStart(3, '0')).join(', ')}
+                                        </span>
+                                    </p>
+                                    <p className="text-gray-600 text-sm font-bold mt-1">
+                                        Total: ${25000 * selectedNumbers.size} COP
+                                    </p>
                                 </div>
                                 
                                 <form className="space-y-3 sm:space-y-4">
@@ -1113,7 +1149,7 @@
                                     <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">✅</div>
                                     <h2 className="text-xl sm:text-3xl font-bold text-green-600 mb-2">¡BOLETA REGISTRADA!</h2>
                                     <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-3xl sm:text-6xl font-bold py-2 sm:py-4 rounded-xl sm:rounded-2xl my-3 sm:my-4">
-                                        {currentTicket.toString().padStart(3, '0')}
+                                        {Array.from(selectedNumbers).sort((a, b) => a - b).map(num => num.toString().padStart(3, '0')).join(', ')}
                                     </div>
                                     
                                     {ticketData[currentTicket] && (
@@ -1138,9 +1174,9 @@
                                     
                                     <div className="text-left space-y-2 text-gray-800">
                                         <p className="text-lg sm:text-2xl font-bold text-green-600">Premio: $1.000.000</p>
-                                        <p className="text-base sm:text-lg">Valor: $25.000 COP</p>
-                                        <p className="text-base sm:text-lg">Sorteo: Chance Pick 3</p>
-                                        <p className="text-base sm:text-lg font-bold">Fecha: 16 Octubre</p>
+                                        <p className="text-base sm:text-lg">Valor Total: ${25000 * selectedNumbers.size} COP</p>
+                                        <p className="text-base sm:text-lg">Sorteo: Chance Pick 3 Noche</p>
+                                        <p className="text-base sm:text-lg font-bold">Fecha: 31 Octubre</p>
                                         <hr className="my-2 sm:my-3 border-gray-300" />
                                         <div className="bg-purple-100 rounded-lg p-2 sm:p-3 mb-2">
                                             <p className="text-xs sm:text-sm font-semibold text-purple-900">💳 Pago Nequi:</p>
@@ -1156,7 +1192,7 @@
                                     </div>
                                 </div>
                                 <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6">
-                                    <button onClick={() => shareClientTicket(currentTicket)} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">📤 Compartir</button>
+                                    <button onClick={shareClientTicket} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">📤 Compartir</button>
                                     <button onClick={() => setShowTicket(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all text-sm sm:text-base">✅ Listo</button>
                                 </div>
                             </div>
