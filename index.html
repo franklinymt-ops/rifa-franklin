@@ -342,27 +342,6 @@
                 }, 500);
             };
 
-            const abrirBancolombia = () => {
-                const appUrl = "bancolombiaper://";
-                const fallbackUrl = "https://api.whatsapp.com/send?phone=573197118858&text=Hola%20Franklin,%20quiero%20pagar%20mi%20boleta%20de%20rifa%20por%20Bancolombia";
-                
-                const isAndroid = /Android/i.test(navigator.userAgent);
-                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-                
-                if (isAndroid) {
-                    window.location.href = "intent://sucursalpersonas#Intent;scheme=bancolombia;package=com.todo1.mobile;end";
-                } else if (isIOS) {
-                    window.location.href = "bancolombiaper://";
-                } else {
-                    window.open(fallbackUrl, '_blank');
-                    return;
-                }
-
-                setTimeout(() => {
-                    window.open(fallbackUrl, '_blank');
-                }, 1000);
-            };
-
             const generarTicketWhatsApp = (numeros, userData, estado) => {
                 const nombreCompleto = `${userData.nombre} ${userData.apellido || ''}`.trim();
                 const estadoTexto = estado === 'pagado' ? 'PAGADO' : 'RESERVADO';
@@ -782,6 +761,7 @@
             const logoutAdmin = () => {
                 setIsAdmin(false);
                 localStorage.setItem('rifaAdmin', 'false');
+                setShowAdminPanel(false);
                 alert('🔒 Sesión de administrador cerrada');
             };
 
@@ -945,12 +925,9 @@
                                     <h3 className="text-white font-bold text-lg mb-2">🏦 Bancolombia</h3>
                                     <p className="text-white/90 text-sm mb-2">Ahorros: 123456789</p>
                                     <p className="text-white/80 text-xs">Franklin Monsalve</p>
-                                    <button 
-                                        onClick={abrirBancolombia}
-                                        className="mt-3 w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-bold transition-all duration-200"
-                                    >
-                                        Pagar con Bancolombia
-                                    </button>
+                                    <div className="mt-3 w-full bg-gray-500 text-white py-2 rounded-lg font-bold text-center">
+                                        Información para transferencia
+                                    </div>
                                 </div>
                             </div>
                             <div className="mt-4 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 backdrop-blur-sm rounded-xl p-4 border border-yellow-400/30">
@@ -965,7 +942,15 @@
                     {isAdmin && (
                         <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
                             <div className="bg-red-500/20 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-red-400/30 shadow-2xl">
-                                <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Panel de Administrador</h2>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-xl sm:text-2xl font-bold text-white">Panel de Administrador</h2>
+                                    <button
+                                        onClick={logoutAdmin}
+                                        className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-lg font-bold transition-all duration-200"
+                                    >
+                                        🔒 Cerrar Sesión
+                                    </button>
+                                </div>
                                 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                                     <button
