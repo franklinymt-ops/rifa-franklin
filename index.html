@@ -86,8 +86,11 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- CONFIGURACIÓN FIREBASE -->
-    <script>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { jsPDF } = window.jspdf;
+
+        // Configuración Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyAGC_fsHfnguY4m0o2OE3SLSanDGk39zbM",
             authDomain: "rifa-franklin.firebaseapp.com",
@@ -97,12 +100,11 @@
             appId: "1:451592144799:web:7ea7a0e85a6579f8b69faa",
             measurementId: "G-Q4XVNYKVWB"
         };
-        firebase.initializeApp(firebaseConfig);
-    </script>
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
-        const { jsPDF } = window.jspdf;
+        // Inicializar Firebase solo una vez
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
 
         function TalonarioRifa() {
             const [selectedNumbers, setSelectedNumbers] = useState(new Set());
@@ -138,12 +140,14 @@
             const [paymentConfirmed, setPaymentConfirmed] = useState(false);
             const [showClearDataModal, setShowClearDataModal] = useState(false);
             const [clearDataConfirmation, setClearDataConfirmation] = useState('');
+            const [showSearchTicketModal, setShowSearchTicketModal] = useState(false);
+            const [searchPhone, setSearchPhone] = useState('');
+            const [foundTickets, setFoundTickets] = useState([]);
 
             const ADMIN_PASSWORD = "Franklin2024";
             const db = firebase.firestore();
             const storage = firebase.storage();
 
-            // Cargar datos iniciales y configurar Firebase
             useEffect(() => {
                 loadLocalData();
                 setupFirebaseListeners();
@@ -160,7 +164,6 @@
             };
 
             const setupFirebaseListeners = () => {
-                // Escuchar números vendidos
                 db.collection('rifa').doc('numbers')
                     .onSnapshot((doc) => {
                         const data = doc.data() || {};
@@ -171,21 +174,18 @@
                         setSyncStatus('🔴 Error: ' + error.message);
                     });
 
-                // Escuchar tickets
                 db.collection('rifa').doc('tickets')
                     .onSnapshot((doc) => {
                         const data = doc.data() || {};
                         setTicketData(data);
                     });
 
-                // Escuchar números reservados
                 db.collection('rifa').doc('reserved')
                     .onSnapshot((doc) => {
                         const data = doc.data() || {};
                         setReservedNumbers(new Set(Object.keys(data).map(Number)));
                     });
 
-                // Escuchar información del sorteo
                 db.collection('rifa').doc('draw')
                     .onSnapshot((doc) => {
                         const data = doc.data() || {};
@@ -195,7 +195,6 @@
                         }
                     });
 
-                // Escuchar contador de tickets
                 db.collection('rifa').doc('metadata')
                     .onSnapshot((doc) => {
                         const data = doc.data() || {};
@@ -205,7 +204,133 @@
                     });
             };
 
-            // NUEVA FUNCIÓN: Abrir modal para actualizar pago de reserva
+            const openSearchTicketModal = () => {
+                setShowSearchTicketModal(true);
+                setSearchPhone('');
+                setFoundTickets([]);
+            };
+
+            const searchTicketByPhone = () => {
+                if (!searchPhone || searchPhone.length < 7) {
+                    alert('Por favor ingresa un número de teléfono válido (mínimo 7 dígitos)');
+                    return;
+                }
+
+                const found = [];
+                const phoneDigits = searchPhone.replace(/\D/g, '');
+
+                Object.entries(ticketData).forEach(([numero, data]) => {
+                    const ticketPhoneDigits = (data.telefono || '').replace(/\D/g, '');
+                    if (ticketPhoneDigits.includes(phoneDigits) || phoneDigits.includes(ticketPhoneDigits)) {
+                        if (!found.some(ticket => ticket.ticketNumber === data.ticketNumber)) {
+                            found.push({
+                                ...data,
+                                numero: parseInt(numero)
+                            });
+                        }
+                    }
+                });
+
+                if (found.length === 0) {
+                    alert('No se encontró ningún ticket con ese número de teléfono');
+                    return;
+                }
+
+                setFoundTickets(found);
+            };
+
+            const showFoundTicket = (ticket) => {
+                setCurrentTicket(ticket.numero);
+                setShowSearchTicketModal(false);
+                setShowTicket(true);
+            };
+
+            const downloadTicketImage = () => {
+                if (!currentTicket || !ticketData[currentTicket]) return;
+
+                const userInfo = ticketData[currentTicket];
+                const canvas = document.createElement('canvas');
+                canvas.width = 800;
+                canvas.height = 1000;
+                const ctx = canvas.getContext('2d');
+
+                // Fondo gradiente
+                const gradient = ctx.createLinearGradient(0, 0, 0, 1000);
+                gradient.addColorStop(0, '#7c3aed');
+                gradient.addColorStop(1, '#4c1d95');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 800, 1000);
+
+                // Contenido del ticket
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 40px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('🎟️ TICKET OFICIAL 🎟️', 400, 80);
+
+                ctx.font = 'bold 30px Arial';
+                ctx.fillText('RIFA $1.000.000', 400, 140);
+
+                // Información del cliente
+                ctx.fillStyle = '#fbbf24';
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(`Cliente: ${userInfo.nombre} ${userInfo.apellido || ''}`, 50, 220);
+                ctx.fillText(`Teléfono: ${userInfo.telefono}`, 50, 270);
+                ctx.fillText(`Ticket No: ${userInfo.ticketNumber}`, 50, 320);
+
+                // Números
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 28px Arial';
+                ctx.fillText('Tus Números:', 50, 400);
+                
+                const numeros = userInfo.numeros || [currentTicket];
+                let yPos = 450;
+                numeros.forEach((num, index) => {
+                    if (index > 0 && index % 5 === 0) yPos += 60;
+                    const xPos = 50 + (index % 5) * 140;
+                    ctx.fillStyle = '#3b82f6';
+                    ctx.fillRect(xPos, yPos, 120, 50);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 30px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(num.toString().padStart(3, '0'), xPos + 60, yPos + 35);
+                });
+
+                // Estado
+                yPos += 100;
+                ctx.textAlign = 'left';
+                ctx.fillStyle = userInfo.estado === 'pagado' ? '#10b981' : '#f59e0b';
+                ctx.font = 'bold 26px Arial';
+                ctx.fillText(`Estado: ${userInfo.estado === 'pagado' ? '✅ PAGADO' : '⏳ RESERVADO'}`, 50, yPos);
+
+                // Info adicional
+                yPos += 80;
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '22px Arial';
+                ctx.fillText('Premio: $1.000.000 COP', 50, yPos);
+                ctx.fillText(`Valor: $${25000 * numeros.length} COP`, 50, yPos + 40);
+                ctx.fillText('Sorteo: Chance Pick 3 Noche', 50, yPos + 80);
+                ctx.fillText('Fecha: 31 de Octubre', 50, yPos + 120);
+
+                // Footer
+                ctx.fillStyle = '#fbbf24';
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Franklin Monsalve - +57 3197118858', 400, yPos + 180);
+
+                // Convertir a imagen y descargar
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `ticket_${userInfo.ticketNumber}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
+            };
+
             const openUpdatePaymentModal = (num) => {
                 setSelectedReservedNumber(num);
                 setUpdatePaymentData({
@@ -214,7 +339,6 @@
                 setShowUpdatePaymentModal(true);
             };
 
-            // NUEVA FUNCIÓN: Actualizar reserva a pagado
             const updateReservationToPaid = async (e) => {
                 e.preventDefault();
                 
@@ -222,7 +346,6 @@
                 const ticketInfo = ticketData[selectedReservedNumber];
 
                 try {
-                    // Actualizar información del ticket
                     const updatedTicketInfo = {
                         ...ticketInfo,
                         estado: 'pagado',
@@ -231,7 +354,6 @@
                         timestampPago: new Date().getTime()
                     };
 
-                    // Actualizar estado local
                     const newTicketData = { ...ticketData, [selectedReservedNumber]: updatedTicketInfo };
                     const newSold = new Set([...soldNumbers, selectedReservedNumber]);
                     const newReserved = new Set(reservedNumbers);
@@ -242,16 +364,13 @@
                     setReservedNumbers(newReserved);
                     setShowUpdatePaymentModal(false);
 
-                    // Guardar en localStorage
                     localStorage.setItem('rifaSoldNumbers', JSON.stringify([...newSold]));
                     localStorage.setItem('rifaTicketData', JSON.stringify(newTicketData));
 
-                    // Guardar en Firebase
                     await db.collection('rifa').doc('numbers').set({ [selectedReservedNumber]: true }, { merge: true });
                     await db.collection('rifa').doc('tickets').set({ [selectedReservedNumber]: updatedTicketInfo }, { merge: true });
                     await db.collection('rifa').doc('reserved').update({ [selectedReservedNumber]: firebase.firestore.FieldValue.delete() });
 
-                    // Notificación de actualización
                     setLastSale({
                         numero: selectedReservedNumber,
                         cliente: ticketInfo.nombre + (ticketInfo.apellido ? ' ' + ticketInfo.apellido : ''),
@@ -261,7 +380,6 @@
                         tipo: 'actualización'
                     });
 
-                    // Enviar confirmación al cliente
                     const confirmationMessage = `🎟️ *ACTUALIZACIÓN DE PAGO - RIFA $1.000.000* 🎟️\n\n` +
                         `¡Hola ${ticketInfo.nombre}! Tu pago ha sido confirmado.\n\n` +
                         `👤 *Titular:* ${ticketInfo.nombre} ${ticketInfo.apellido || ''}\n` +
@@ -413,29 +531,31 @@
                     await db.collection('rifa').doc('tickets').set(newTicketData);
                     
                     const reservedUpdate = {};
-                    selectedNumbers.forEach(num => {
+                    Array.from(ticketInfo.numeros).forEach(num => {
                         reservedUpdate[num] = firebase.firestore.FieldValue.delete();
                     });
-                    await db.collection('rifa').doc('reserved').update(reservedUpdate);
+                    if (Object.keys(reservedUpdate).length > 0) {
+                        await db.collection('rifa').doc('reserved').update(reservedUpdate);
+                    }
                     
                     await db.collection('rifa').doc('metadata').set({ ticketCounter: ticketCounter + 1 }, { merge: true });
 
                     setTicketCounter(ticketCounter + 1);
 
                     setLastSale({
-                        numeros: Array.from(selectedNumbers),
+                        numeros: Array.from(ticketInfo.numeros),
                         cliente: formData.nombre + (formData.apellido ? ' ' + formData.apellido : ''),
                         telefono: formData.telefono,
                         metodoPago: formData.metodoPago,
                         timestamp: new Date().getTime()
                     });
 
-                    const ticketMessage = generarTicketWhatsApp(selectedNumbers, ticketInfo, 'pagado');
+                    const ticketMessage = generarTicketWhatsApp(new Set(ticketInfo.numeros), ticketInfo, 'pagado');
                     window.open(`https://wa.me/57${formData.telefono}?text=${encodeURIComponent(ticketMessage)}`, '_blank');
 
-                    sendToFranklinWhatsApp(selectedNumbers, ticketInfo, 'pagado');
+                    sendToFranklinWhatsApp(new Set(ticketInfo.numeros), ticketInfo, 'pagado');
 
-                    setCurrentTicket(Array.from(selectedNumbers)[0]);
+                    setCurrentTicket(ticketInfo.numeros[0]);
                     setShowTicket(true);
 
                 } catch (error) {
@@ -543,10 +663,6 @@
                 setPendingNumbers(new Set([...pendingNumbers].filter(n => !selectedNumbers.has(n))));
             };
 
-            const showClientTicket = () => {
-                setShowTicket(true);
-            };
-
             const shareClientTicket = () => {
                 if (!currentTicket) return;
                 
@@ -588,7 +704,6 @@
                 }
             };
 
-            // NUEVA FUNCIÓN: Abrir modal para limpiar datos
             const openClearDataModal = () => {
                 if (!isAdmin) {
                     alert('❌ Solo el administrador puede realizar esta acción');
@@ -598,7 +713,6 @@
                 setClearDataConfirmation('');
             };
 
-            // NUEVA FUNCIÓN: Limpiar todos los datos con confirmación
             const clearAllData = async (e) => {
                 e.preventDefault();
                 
@@ -710,9 +824,9 @@
                 const finalY = doc.lastAutoTable.finalY + 10;
                 doc.setFontSize(12);
                 doc.setFont(undefined, 'bold');
-                doc.text(`**Total vendidos: ${soldNumbers.size}**`, 14, finalY);
-                doc.text(`**Total reservados: ${reservedNumbers.size}**`, 14, finalY + 6);
-                doc.text(`**Disponibles: ${100 - soldNumbers.size - reservedNumbers.size}**`, 14, finalY + 12);
+                doc.text(`Total vendidos: ${soldNumbers.size}`, 14, finalY);
+                doc.text(`Total reservados: ${reservedNumbers.size}`, 14, finalY + 6);
+                doc.text(`Disponibles: ${100 - soldNumbers.size - reservedNumbers.size}`, 14, finalY + 12);
                 
                 doc.save(`reporte_rifa_${new Date().toISOString().split('T')[0]}.pdf`);
             };
@@ -769,7 +883,6 @@
 
             return (
                 <div className="p-3 sm:p-4">
-                    {/* INDICADOR DE ESTADO */}
                     <div className="max-w-6xl mx-auto mb-4">
                         <div className={`${
                             syncStatus.includes('CONECTADO') ? 'bg-green-500/20 border-green-400' : 
@@ -779,7 +892,6 @@
                         </div>
                     </div>
 
-                    {/* NOTIFICACIÓN DE ÚLTIMA VENTA */}
                     {lastSale && (
                         <div className="max-w-6xl mx-auto mb-4">
                             <div className="bg-green-500/20 backdrop-blur-lg rounded-xl p-3 border border-green-400/30 animate-pulse">
@@ -791,7 +903,6 @@
                         </div>
                     )}
 
-                    {/* Header */}
                     <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
                         <div className="bg-white/10 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/20 shadow-2xl">
                             <div className="text-center">
@@ -822,7 +933,6 @@
                         </div>
                     </div>
 
-                    {/* Números */}
                     <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
                         <div className="bg-white/10 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/20 shadow-2xl">
                             <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Selecciona tus números</h2>
@@ -886,10 +996,10 @@
                                 </button>
                                 
                                 <button
-                                    onClick={showClientTicket}
+                                    onClick={openSearchTicketModal}
                                     className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold transition-all duration-200 shadow-lg"
                                 >
-                                    Ver Mi Ticket
+                                    🎟️ Ver Mi Ticket
                                 </button>
                                 
                                 {!isAdmin && (
@@ -904,7 +1014,6 @@
                         </div>
                     </div>
 
-                    {/* Información de Pago */}
                     <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
                         <div className="bg-white/10 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/20 shadow-2xl">
                             <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Información de Pago</h2>
@@ -938,7 +1047,6 @@
                         </div>
                     </div>
 
-                    {/* Panel de Administrador */}
                     {isAdmin && (
                         <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
                             <div className="bg-red-500/20 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-red-400/30 shadow-2xl">
@@ -1004,7 +1112,76 @@
                         </div>
                     )}
 
-                    {/* Modal de Formulario */}
+                    {showSearchTicketModal && (
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border border-white/20 shadow-2xl max-h-[90vh] overflow-y-auto">
+                                <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">🔍 Buscar Mi Ticket</h2>
+                                
+                                <div className="mb-4">
+                                    <label className="block text-white text-sm font-medium mb-2">
+                                        Ingresa tu número de teléfono:
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        value={searchPhone}
+                                        onChange={(e) => setSearchPhone(e.target.value)}
+                                        placeholder="Ej: 3001234567"
+                                        className="w-full p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={searchTicketByPhone}
+                                    className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-bold transition-all duration-200 mb-4"
+                                >
+                                    🔍 Buscar
+                                </button>
+
+                                {foundTickets.length > 0 && (
+                                    <div className="space-y-3 mb-4">
+                                        <h3 className="text-white font-bold text-center">Tickets Encontrados:</h3>
+                                        {foundTickets.map((ticket, index) => (
+                                            <div key={index} className="bg-white/10 rounded-xl p-4 border border-white/20">
+                                                <p className="text-white font-bold mb-2">
+                                                    {ticket.nombre} {ticket.apellido || ''}
+                                                </p>
+                                                <p className="text-white/80 text-sm mb-2">
+                                                    📱 {ticket.telefono}
+                                                </p>
+                                                <p className="text-white/80 text-sm mb-2">
+                                                    🎫 {ticket.ticketNumber}
+                                                </p>
+                                                <p className="text-white/80 text-sm mb-2">
+                                                    🎯 Números: {ticket.numeros?.map(n => n.toString().padStart(3, '0')).join(', ')}
+                                                </p>
+                                                <p className="text-white/80 text-sm mb-3">
+                                                    📋 Estado: {ticket.estado === 'pagado' ? '✅ PAGADO' : '⏳ RESERVADO'}
+                                                </p>
+                                                <button
+                                                    onClick={() => showFoundTicket(ticket)}
+                                                    className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold transition-all duration-200"
+                                                >
+                                                    Ver Ticket Completo
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => {
+                                        setShowSearchTicketModal(false);
+                                        setSearchPhone('');
+                                        setFoundTickets([]);
+                                    }}
+                                    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
+                                >
+                                    ❌ Cerrar
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {showForm && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border border-white/20 shadow-2xl">
@@ -1119,7 +1296,6 @@
                         </div>
                     )}
 
-                    {/* Modal de Actualización de Pago */}
                     {showUpdatePaymentModal && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border border-white/20 shadow-2xl">
@@ -1127,9 +1303,9 @@
                                 
                                 <div className="bg-white/10 rounded-xl p-4 mb-4">
                                     <p className="text-white text-center">
-                                        Número: <span className="font-bold text-yellow-400">{selectedReservedNumber.toString().padStart(3, '0')}</span>
+                                        Número: <span className="font-bold text-yellow-400">{selectedReservedNumber && selectedReservedNumber.toString().padStart(3, '0')}</span>
                                     </p>
-                                    {ticketData[selectedReservedNumber] && (
+                                    {selectedReservedNumber && ticketData[selectedReservedNumber] && (
                                         <p className="text-white text-center">
                                             Cliente: <span className="font-bold">{ticketData[selectedReservedNumber].nombre} {ticketData[selectedReservedNumber].apellido || ''}</span>
                                         </p>
@@ -1173,7 +1349,6 @@
                         </div>
                     )}
 
-                    {/* Modal de Ticket */}
                     {showTicket && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border-4 border-white shadow-2xl">
@@ -1203,18 +1378,24 @@
                                         </div>
                                     )}
                                     
-                                    <div className="flex flex-col sm:flex-row gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <button
+                                            onClick={downloadTicketImage}
+                                            className="bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
+                                        >
+                                            💾 Descargar
+                                        </button>
                                         <button
                                             onClick={shareClientTicket}
-                                            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
+                                            className="bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
                                         >
-                                            Compartir Ticket
+                                            📤 Compartir
                                         </button>
                                         <button
                                             onClick={() => setShowTicket(false)}
-                                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
+                                            className="bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-bold transition-all duration-200"
                                         >
-                                            Cerrar
+                                            ❌ Cerrar
                                         </button>
                                     </div>
                                 </div>
@@ -1222,7 +1403,6 @@
                         </div>
                     )}
 
-                    {/* Panel de Administrador Login */}
                     {showAdminPanel && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border border-white/20 shadow-2xl">
@@ -1255,7 +1435,6 @@
                         </div>
                     )}
 
-                    {/* Panel de Sorteo */}
                     {showDrawPanel && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border border-white/20 shadow-2xl">
@@ -1266,7 +1445,7 @@
                                         <div>
                                             <p className="text-white text-lg mb-2">🎉 ¡SORTEO REALIZADO! 🎉</p>
                                             <div className="text-4xl font-bold text-yellow-400 mb-2">
-                                                {winnerNumber.toString().padStart(3, '0')}
+                                                {winnerNumber && winnerNumber.toString().padStart(3, '0')}
                                             </div>
                                             <p className="text-white">¡Felicidades al ganador!</p>
                                         </div>
@@ -1301,7 +1480,6 @@
                         </div>
                     )}
 
-                    {/* Modal de Limpiar Datos */}
                     {showClearDataModal && (
                         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-md border border-white/20 shadow-2xl">
@@ -1357,4 +1535,3 @@
     </script>
 </body>
 </html>
-
